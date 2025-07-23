@@ -1,0 +1,14 @@
+passlib==1.7.4
+sqlalchemy==2.0.30
+fastapi==0.115.11
+pydantic==2.8.1
+pytest==7.4.4
+alembic==1.16.0
+python-jose==3.4.0
+uvicorn==0.32.1
+sentry-sdk==2.29.1
+pydantic-settings==2.8.1
+psycopg2==2.9.10
+python-multipart==0.0.19
+pydantic[email]==2.8.1
+
