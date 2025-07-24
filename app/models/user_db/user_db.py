@@ -35,3 +35,4 @@ class User(Base):
     selfie_url = Column(String, nullable=True)
     id_document_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.now())
+    is_admin = Column(Boolean, default=False)
