@@ -34,3 +34,23 @@ class QuizOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class QuizCreate(BaseModel):
+    text: str
+
+
+class QuizAnswerCreate(BaseModel):
+    text: str
+    score: int
+    archetype: str
+
+
+class QuizUpdate(BaseModel):
+    text: str
+
+
+class QuizAnswerUpdate(BaseModel):
+    text: str | None = None
+    score: int | None = None
+    archetype: str | None = None
