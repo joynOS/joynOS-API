@@ -10,9 +10,6 @@ class Settings(BaseSettings):
     # Banco de dados
     DATABASE_URL: str
 
-    # sentry
-    SENTRY_DSN: str
-
 
     class Config:
         env_file = ".env"
