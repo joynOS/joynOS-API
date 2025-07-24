@@ -3,9 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.user_db.user_db import User
-from app.schemas.users.user_base import UserBase
-from app.schemas.users.user_create import UserCreate
-from app.schemas.users.user_update import UserUpdate
+from app.schemas.users.user_base import UserBase, UserCreate, UserUpdate
 from app.core.security import hash_password
 from typing import List
 
