@@ -4,6 +4,9 @@ from logging.config import fileConfig
 from app.core.config import settings
 from app.core.database import Base
 from app.models.user_db.user_db import User
+from app.models.quiz_db.quiz_db import Quiz
+from app.models.quiz_db.quiz_answer_db import QuizAnswer
+from app.models.quiz_db.quiz_user_answer import QuizUserAnswer
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
