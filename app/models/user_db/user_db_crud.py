@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.models.user_db.user_db import User
@@ -24,7 +26,7 @@ def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
 
 
-def get_user_by_id(db: Session, user_id: int):
+def get_user_by_id(db: Session, user_id: UUID):
     return db.query(User).filter(User.id == user_id).first()
 
 
@@ -32,7 +34,7 @@ def get_all_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
     return db.query(User).offset(skip).limit(limit).all()
 
 
-def update_user(db: Session, user_id: int, updates: UserBase):
+def update_user(db: Session, user_id: UUID, updates: UserBase):
     user = get_user_by_id(db, user_id)
     if not user:
         return None
@@ -43,7 +45,7 @@ def update_user(db: Session, user_id: int, updates: UserBase):
     return user
 
 
-def delete_user(db: Session, user_id: int):
+def delete_user(db: Session, user_id: UUID):
     user = get_user_by_id(db, user_id)
     if not user:
         return None
@@ -53,7 +55,7 @@ def delete_user(db: Session, user_id: int):
 
 
 def update_user_selfie_and_id(
-    db: Session, user_id: int, selfie_url: str = None, id_document_url: str = None
+    db: Session, user_id: UUID, selfie_url: str = None, id_document_url: str = None
 ):
     user = get_user_by_id(db, user_id)
     if not user:
