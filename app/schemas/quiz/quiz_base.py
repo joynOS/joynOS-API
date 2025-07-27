@@ -1,56 +1,32 @@
-from pydantic import BaseModel
 from uuid import UUID
-from typing import List
+
+from pydantic import BaseModel
+from typing import List, Dict
 
 
-class AnswerSubmission(BaseModel):
-    quiz_id: UUID
-    answer_id: UUID
-
-
-class QuizSubmission(BaseModel):
-    user_id: UUID
-    answers: List[AnswerSubmission]
-
-
-class QuizResult(BaseModel):
-    user_id: UUID
-    archetype: str
-    top_scores: dict
-
-
-class QuizAnswerOut(BaseModel):
-    id: UUID
+class Answer(BaseModel):
+    id: str
     text: str
-
-    class Config:
-        from_attributes = True
-
-
-class QuizOut(BaseModel):
-    id: UUID
-    text: str
-    quiz_answers: List[QuizAnswerOut]
-
-    class Config:
-        from_attributes = True
-
-
-class QuizCreate(BaseModel):
-    text: str
-
-
-class QuizAnswerCreate(BaseModel):
-    text: str
-    score: int
     archetype: str
 
 
-class QuizUpdate(BaseModel):
-    text: str
+class QuizBase(BaseModel):
+    question_id: str
+    question: str
+    image: str
+    answers: List[Answer]
 
 
-class QuizAnswerUpdate(BaseModel):
-    text: str | None = None
-    score: int | None = None
-    archetype: str | None = None
+class QuizCreate(QuizBase):
+    pass
+
+
+class QuizUpdate(QuizBase):
+    pass
+
+
+class QuizOut(QuizBase):
+    id: UUID
+
+    class Config:
+        from_attributes = True

@@ -11,4 +11,5 @@ pydantic-settings==2.8.1
 psycopg2-binary==2.9.10
 python-multipart==0.0.19
 pydantic[email]==2.8.1
+aiosmtplib==4.0.1
 

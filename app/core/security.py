@@ -65,6 +65,11 @@ def get_current_user(
     return user
 
 
+def create_admin_invite_token(email: str) -> str:
+    data = {"sub": email, "admin_invite": True}
+    return create_access_token(data, expires_delta=timedelta(hours=1))
+
+
 def make_user_admin(db: Session, user_id: str):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
