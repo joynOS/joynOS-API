@@ -46,3 +46,8 @@ class UserOut(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class UserQuizEmbeddingIn(BaseModel):
+    user_id: UUID
+    answers: List[str] 

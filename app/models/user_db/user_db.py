@@ -1,6 +1,8 @@
 import uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy import Column, String, Boolean, Integer, DateTime, Text
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 from datetime import datetime
 
@@ -28,3 +30,5 @@ class User(Base):
     location = Column(JSONB, nullable=True)  # { lat, lng, city }
     is_onboarded = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    match = relationship("Match", back_populates="user", uselist=False)
