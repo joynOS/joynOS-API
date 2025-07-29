@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.database import Base
 from app.models.user_db.user_db import User
 from app.models.quiz_db.quiz_db import Quiz
+from app.models.match_db.match_db import Match
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 

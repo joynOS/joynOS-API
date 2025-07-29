@@ -1,11 +1,25 @@
+from typing import AsyncGenerator
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from app.models.quiz_db.seed_quiz import seed_quiz_questions
 from app.routes.auth.auth_routers import auth_router
+from app.routes.match.match_routers import match_router
 from app.routes.user.user_routers import user_router
 from app.routes.quiz.quiz_routers import quiz_router
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    seed_quiz_questions()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +32,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(quiz_router)
+app.include_router(match_router)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -1,6 +1,6 @@
 passlib==1.7.4
 sqlalchemy==2.0.30
-fastapi==0.115.11
+fastapi~=0.116.1
 pydantic==2.8.1
 pytest==7.4.4
 alembic==1.16.0
@@ -12,4 +12,8 @@ psycopg2-binary==2.9.10
 python-multipart==0.0.19
 pydantic[email]==2.8.1
 aiosmtplib==4.0.1
+sentence-transformers==4.1.0
+numpy==2.3.2
 
+
+numpy~=2.3.2
