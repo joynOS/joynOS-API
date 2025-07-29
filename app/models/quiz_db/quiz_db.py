@@ -17,5 +17,5 @@ class Quiz(Base):
 
     question_id = Column(String, unique=True, nullable=False)
     question = Column(String, nullable=False)
-    image = Column(String, nullable=False)
+    #image = Column(String, nullable=False)
     answers = Column(JSONB, nullable=False)  # [{ id, text, archetype }]
