@@ -4,8 +4,8 @@ from datetime import datetime
 from app.core.database import Base
 
 
-class Member(Base):
-    __tablename__ = "members"
+class EventMember(Base):
+    __tablename__ = "event_members"
 
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)

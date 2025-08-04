@@ -27,8 +27,8 @@ class Event(Base):
 
     ai_vibe_analysis = Column(Text, nullable=True)
 
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    creator = relationship("User", backref="created_events")
+    # created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # creator = relationship("User", backref="created_events")
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
