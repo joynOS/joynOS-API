@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersRepository } from '../users/users.repository';
 import { randomUUID, createHash } from 'crypto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -13,7 +14,7 @@ export class AuthService {
   async signup(email: string, password: string, name: string) {
     const exists = await this.usersRepo.findByEmail(email);
     if (exists) throw new UnauthorizedException();
-    const passwordHash = createHash('sha256').update(password).digest('hex');
+    const passwordHash = await bcrypt.hash(password, 10);
     const user = await this.usersRepo.create({ email, name, passwordHash });
     return this.issueTokens(user.id);
   }
@@ -21,8 +22,8 @@ export class AuthService {
   async signin(email: string, password: string) {
     const user = await this.usersRepo.findByEmail(email);
     if (!user) throw new UnauthorizedException();
-    const passwordHash = createHash('sha256').update(password).digest('hex');
-    if (user.passwordHash !== passwordHash) throw new UnauthorizedException();
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) throw new UnauthorizedException();
     return this.issueTokens(user.id);
   }
 

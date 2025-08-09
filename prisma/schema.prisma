@@ -45,29 +45,137 @@ model User {
   currentLat    Decimal? @db.Decimal(9, 6)
   currentLng    Decimal? @db.Decimal(9, 6)
   radiusMiles   Int      @default(10)
+  aiProfile     Json?
+  embedding     Bytes?
   members       Member[]
+  interests     UserInterest[]
+  quizResults   UserQuizResult[]
   planVotes     PlanVote[]
   messages      EventMessage[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
+model Interest {
+  id        String          @id @default(uuid())
+  slug      String          @unique
+  emoji     String?
+  label     String
+  createdAt DateTime        @default(now())
+
+  users     UserInterest[]
+  events    EventInterest[]
+}
+
+model UserInterest {
+  userId     String
+  interestId String
+  weight     Int      @default(1)
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestId])
+  @@index([interestId])
+}
+
+model EventInterest {
+  eventId    String
+  interestId String
+  weight     Int      @default(1)
+
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, interestId])
+  @@index([interestId])
+}
+
+model Quiz {
+  id        String         @id @default(uuid())
+  key       String         @unique
+  title     String
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  questions QuizQuestion[]
+  results   UserQuizResult[]
+}
+
+model QuizQuestion {
+  id        String       @id @default(uuid())
+  quizId    String
+  order     Int
+  imageUrl  String?
+  question  String
+
+  quiz      Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers   QuizAnswer[]
+
+  @@index([quizId])
+  @@unique([quizId, order])
+}
+
+model QuizAnswer {
+  id         String       @id @default(uuid())
+  questionId String
+  key        String
+  text       String
+  archetype  String?
+
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@unique([questionId, key])
+}
+
+model UserQuizResult {
+  id                String   @id @default(uuid())
+  userId            String
+  quizId            String
+  archetypeTally    Json
+  dominantArchetype String?
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz              Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, quizId])
+}
+
 model Event {
   id                 String      @id @default(uuid())
   title              String
+  description        String?
+  imageUrl           String?
   source             String?
   sourceId           String?
   externalBookingUrl String?
+  venue              String?
+  address            String?
+  lat                Decimal?    @db.Decimal(9, 6)
+  lng                Decimal?    @db.Decimal(9, 6)
+  startTime          DateTime?
+  endTime            DateTime?
   rating             Decimal?    @db.Decimal(2, 1)
   priceLevel         Int?
   votingState        VotingState @default(NOT_STARTED)
   votingEndsAt       DateTime?
   selectedPlanId     String?
+  aiRaw              Json?
+  aiNormalized       Json?
+  embedding          Bytes?
+  tags               String[]
   plans              Plan[]
   members            Member[]
   messages           EventMessage[]
+  interests          EventInterest[]
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
+  @@index([startTime])
+  @@index([lat, lng])
+  @@index([votingState])
+  @@unique([source, sourceId])
 }
 
 model Plan {
@@ -78,6 +186,8 @@ model Plan {
   emoji       String?
   votes       Int     @default(0)
   isSelected  Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   event       Event   @relation(fields: [eventId], references: [id])
   votesRel    PlanVote[]
 }
@@ -86,9 +196,11 @@ model PlanVote {
   id      String @id @default(uuid())
   planId  String
   userId  String
+  createdAt DateTime @default(now())
   plan    Plan   @relation(fields: [planId], references: [id])
   user    User   @relation(fields: [userId], references: [id])
   @@unique([planId, userId])
+  @@index([userId])
 }
 
 model Member {
@@ -98,9 +210,11 @@ model Member {
   status        MemberStatus  @default(JOINED)
   bookingStatus BookingStatus @default(NONE)
   joinedAt      DateTime      @default(now())
+  compatibilityScore Int?
   event         Event         @relation(fields: [eventId], references: [id])
   user          User          @relation(fields: [userId], references: [id])
   @@unique([eventId, userId])
+  @@index([userId])
 }
 
 model EventMessage {
@@ -112,4 +226,29 @@ model EventMessage {
   createdAt DateTime   @default(now())
   event     Event      @relation(fields: [eventId], references: [id])
   user      User?      @relation(fields: [userId], references: [id])
+  @@index([eventId, createdAt])
+}
+
+model VibeScoreCache {
+  id         String   @id @default(uuid())
+  kind       String
+  subjectId  String
+  objectId   String
+  score      Int
+  details    Json?
+  expiresAt  DateTime
+
+  @@index([kind, subjectId, objectId])
+  @@index([expiresAt])
+}
+
+model IdempotencyKey {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  method        String
+  path          String
+  userId        String?
+  statusCode    Int
+  responseHash  String
+  createdAt     DateTime @default(now())
 }

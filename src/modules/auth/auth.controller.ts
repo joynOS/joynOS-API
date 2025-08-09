@@ -27,9 +27,14 @@ export class AuthController {
   @ApiResponse({ status: 200 })
   async refresh(@Req() req: any) {
     const token = req.headers['x-refresh-token'] as string;
-    const payload = token
-      ? ((await import('jsonwebtoken')).decode(token) as any)
-      : null;
+    if (!token) return { error: 'unauthorized' };
+    const { verify } = await import('jsonwebtoken');
+    let payload: any;
+    try {
+      payload = verify(token, process.env.JWT_REFRESH_SECRET || 'dev-refresh');
+    } catch {
+      return { error: 'unauthorized' };
+    }
     if (!payload?.sub) return { error: 'unauthorized' };
     return this.auth.refresh(payload.sub, token);
   }
