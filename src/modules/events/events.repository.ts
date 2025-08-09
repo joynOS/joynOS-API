@@ -1,0 +1,157 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { VotingState } from '../../common/constants/domain.constants';
+
+@Injectable()
+export class EventsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createEvent(data: {
+    title: string;
+    externalBookingUrl?: string;
+    source?: string;
+    sourceId?: string;
+  }) {
+    return this.prisma.event.create({
+      data: {
+        title: data.title,
+        externalBookingUrl: data.externalBookingUrl,
+        source: data.source,
+        sourceId: data.sourceId,
+        votingState: VotingState.NOT_STARTED,
+      },
+    });
+  }
+
+  async getRecommendations() {
+    return this.prisma.event.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async getById(id: string) {
+    return this.prisma.event.findUnique({ where: { id } });
+  }
+
+  async ensureTwoPlans(eventId: string) {
+    const current = await this.prisma.plan.findMany({
+      where: { eventId },
+      orderBy: { createdAt: 'asc' } as any,
+    });
+    let plans = current;
+    while (plans.length < 2) {
+      const created = await this.prisma.plan.create({
+        data: {
+          eventId,
+          title: `Plan ${plans.length + 1}`,
+          description: 'TBD',
+          votes: 0,
+          isSelected: false,
+        },
+      });
+      plans = [...plans, created];
+    }
+    return plans.slice(0, 2);
+  }
+
+  async listPlans(eventId: string) {
+    return this.prisma.plan.findMany({ where: { eventId } });
+  }
+
+  async votePlan(planId: string, userId: string) {
+    try {
+      await this.prisma.planVote.create({ data: { planId, userId } });
+      await this.prisma.plan.update({
+        where: { id: planId },
+        data: { votes: { increment: 1 } },
+      });
+    } catch {}
+  }
+
+  async closeVoting(eventId: string) {
+    const plans = await this.listPlans(eventId);
+    if (plans.length === 0) return null;
+    const winner = plans.sort((a: any, b: any) =>
+      a.votes === b.votes ? a.id.localeCompare(b.id) : b.votes - a.votes,
+    )[0];
+    await this.prisma.$transaction([
+      this.prisma.event.update({
+        where: { id: eventId },
+        data: { selectedPlanId: winner.id, votingState: VotingState.CLOSED },
+      }),
+      this.prisma.plan.update({
+        where: { id: winner.id },
+        data: { isSelected: true },
+      }),
+    ]);
+    return winner;
+  }
+
+  async joinEvent(eventId: string, userId: string) {
+    const member = await this.prisma.member.upsert({
+      where: { eventId_userId: { eventId, userId } },
+      update: {},
+      create: { eventId, userId, status: 'JOINED' as any },
+    });
+    const event = await this.getById(eventId);
+    if (event && event.votingState === VotingState.NOT_STARTED) {
+      const endsAt = new Date(Date.now() + 180000);
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { votingState: VotingState.OPEN, votingEndsAt: endsAt },
+      });
+    }
+    return member;
+  }
+
+  async leaveEvent(eventId: string, userId: string) {
+    return this.prisma.member.update({
+      where: { eventId_userId: { eventId, userId } },
+      data: { status: 'CANT_MAKE_IT' as any },
+    });
+  }
+
+  async commit(eventId: string, userId: string, decision: 'IN' | 'OUT') {
+    return this.prisma.member.update({
+      where: { eventId_userId: { eventId, userId } },
+      data: {
+        status:
+          decision === 'IN' ? ('COMMITTED' as any) : ('CANT_MAKE_IT' as any),
+      },
+    });
+  }
+
+  async confirmBooking(eventId: string, userId: string, bookingRef?: string) {
+    return this.prisma.member.update({
+      where: { eventId_userId: { eventId, userId } },
+      data: { bookingStatus: 'BOOKED' as any },
+    });
+  }
+
+  async getBooking(eventId: string) {
+    const event = await this.getById(eventId);
+    if (!event) return null;
+    const plan = event.selectedPlanId
+      ? await this.prisma.plan.findUnique({
+          where: { id: event.selectedPlanId },
+        })
+      : null;
+    return { externalBookingUrl: event.externalBookingUrl, selectedPlan: plan };
+  }
+
+  async listChat(eventId: string, cursor?: string, limit: number = 50) {
+    const items = await this.prisma.eventMessage.findMany({
+      where: { eventId },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return { items, nextCursor: null };
+  }
+
+  async postMessage(eventId: string, userId: string, text: string) {
+    return this.prisma.eventMessage.create({
+      data: { eventId, userId, kind: 'CHAT' as any, text },
+    });
+  }
+}

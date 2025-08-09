@@ -1,36 +1,15 @@
+version: '3.9'
 services:
   db:
-    image: postgres:15
-    restart: always
+    image: postgres:16-alpine
+    container_name: joynos_db
     environment:
-      POSTGRES_USER: ego-eimi
-      POSTGRES_PASSWORD: ego-eimi
-      POSTGRES_DB: joynos
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: joyn
+      POSTGRES_PASSWORD: joyn
+      POSTGRES_DB: joyn
     ports:
-      - "5432:5432"
-
-  web:
-    build: .
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - '5434:5432'
     volumes:
-      - .:/app
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    env_file:
-      - .env
-
-  migrate:
-    build: .
-    command: sh -c "sleep 10 && alembic upgrade head"
-    #command: alembic upgrade head
-    depends_on:
-      - db
-    env_file:
-      - .env
-
+      - db_data:/var/lib/postgresql/data
 volumes:
-  postgres_data:
+  db_data:

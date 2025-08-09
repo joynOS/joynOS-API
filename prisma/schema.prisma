@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberStatus {
+  INVITED
+  JOINED
+  COMMITTED
+  CANT_MAKE_IT
+  WAITLIST
+}
+
+enum BookingStatus {
+  NONE
+  PENDING
+  BOOKED
+}
+
+enum VotingState {
+  NOT_STARTED
+  OPEN
+  CLOSED
+}
+
+enum MessageKind {
+  CHAT
+  SYSTEM
+  VOTE
+  BOOKING
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  refreshToken  String?
+  name          String
+  bio           String?
+  avatar        String?
+  currentLat    Decimal? @db.Decimal(9, 6)
+  currentLng    Decimal? @db.Decimal(9, 6)
+  radiusMiles   Int      @default(10)
+  members       Member[]
+  planVotes     PlanVote[]
+  messages      EventMessage[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Event {
+  id                 String      @id @default(uuid())
+  title              String
+  source             String?
+  sourceId           String?
+  externalBookingUrl String?
+  rating             Decimal?    @db.Decimal(2, 1)
+  priceLevel         Int?
+  votingState        VotingState @default(NOT_STARTED)
+  votingEndsAt       DateTime?
+  selectedPlanId     String?
+  plans              Plan[]
+  members            Member[]
+  messages           EventMessage[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+}
+
+model Plan {
+  id          String  @id @default(uuid())
+  eventId     String
+  title       String
+  description String
+  emoji       String?
+  votes       Int     @default(0)
+  isSelected  Boolean @default(false)
+  event       Event   @relation(fields: [eventId], references: [id])
+  votesRel    PlanVote[]
+}
+
+model PlanVote {
+  id      String @id @default(uuid())
+  planId  String
+  userId  String
+  plan    Plan   @relation(fields: [planId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+  @@unique([planId, userId])
+}
+
+model Member {
+  id            String        @id @default(uuid())
+  eventId       String
+  userId        String
+  status        MemberStatus  @default(JOINED)
+  bookingStatus BookingStatus @default(NONE)
+  joinedAt      DateTime      @default(now())
+  event         Event         @relation(fields: [eventId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  @@unique([eventId, userId])
+}
+
+model EventMessage {
+  id        String     @id @default(uuid())
+  eventId   String
+  userId    String?
+  kind      MessageKind
+  text      String
+  createdAt DateTime   @default(now())
+  event     Event      @relation(fields: [eventId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+}
