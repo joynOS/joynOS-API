@@ -13,9 +13,14 @@ import { AdminController } from './modules/admin/admin.controller';
 import { EventsRepository } from './modules/events/events.repository';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { AIModule } from './modules/ai/ai.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { MatchingModule } from './modules/matching/matching.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, EventsModule, JwtModule.register({})],
+  imports: [DatabaseModule, AuthModule, EventsModule, JwtModule.register({}), AIModule, IngestionModule, MatchingModule],
   controllers: [
     AppController,
     UsersController,
@@ -29,6 +34,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     UsersRepository,
     EventsRepository,
     JwtAuthGuard,
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule {}

@@ -7,13 +7,14 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { EventsRepository } from '../events/events.repository';
+import { IngestionService } from '../ingestion/ingestion.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class AdminController {
-  constructor(private readonly eventsRepo: EventsRepository) {}
+  constructor(private readonly eventsRepo: EventsRepository, private readonly ingestion: IngestionService) {}
   @Post('events')
   @ApiOperation({ summary: 'Create event' })
   @ApiResponse({ status: 201 })
@@ -46,7 +47,5 @@ export class AdminController {
   @Post('ingestion/run')
   @ApiOperation({ summary: 'Run ingestion' })
   @ApiResponse({ status: 202 })
-  runIngestion() {
-    return { enqueued: true };
-  }
+  async runIngestion() { await this.ingestion.pullTicketmasterNYC(); return { ok: true } }
 }

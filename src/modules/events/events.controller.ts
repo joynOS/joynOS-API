@@ -15,6 +15,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { MembershipGuard } from '../../common/guards/membership.guard';
 import { EventsService } from './events.service';
 import {
   BookingConfirmDto,
@@ -34,8 +35,8 @@ export class EventsController {
   @Get('recommendations')
   @ApiOperation({ summary: 'Recommended events' })
   @ApiResponse({ status: 200 })
-  async recommendations(@Query() query: RecommendationsQueryDto) {
-    return this.service.recommendations();
+  async recommendations(@Query() query: RecommendationsQueryDto, @Req() req: any) {
+    return this.service.recommendations(req.user?.userId);
   }
 
   @Get(':id')
@@ -55,6 +56,7 @@ export class EventsController {
   @Post(':id/plans/:planId/vote')
   @ApiOperation({ summary: 'Vote plan' })
   @ApiResponse({ status: 200 })
+  @UseGuards(MembershipGuard)
   async vote(
     @Param('id') id: string,
     @Param('planId') planId: string,
@@ -105,6 +107,7 @@ export class EventsController {
   @Post(':id/booking/confirm')
   @ApiOperation({ summary: 'Confirm booking' })
   @ApiResponse({ status: 200 })
+  @UseGuards(MembershipGuard)
   async confirmBooking(
     @Param() params: EventIdParamDto,
     @Body() dto: BookingConfirmDto,
@@ -131,6 +134,7 @@ export class EventsController {
   @Post(':id/chat')
   @ApiOperation({ summary: 'Send message' })
   @ApiResponse({ status: 201 })
+  @UseGuards(MembershipGuard)
   async createMessage(
     @Param() params: EventIdParamDto,
     @Body() dto: CreateMessageDto,
