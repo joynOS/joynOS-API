@@ -14,7 +14,10 @@ import { IngestionService } from '../ingestion/ingestion.service';
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class AdminController {
-  constructor(private readonly eventsRepo: EventsRepository, private readonly ingestion: IngestionService) {}
+  constructor(
+    private readonly eventsRepo: EventsRepository,
+    private readonly ingestion: IngestionService,
+  ) {}
   @Post('events')
   @ApiOperation({ summary: 'Create event' })
   @ApiResponse({ status: 201 })
@@ -33,15 +36,22 @@ export class AdminController {
   @Post('events/:id/ai/build-plans')
   @ApiOperation({ summary: 'Force AI plan build' })
   @ApiResponse({ status: 202 })
-  async buildPlans(@Param('id') id: string) { return { ok: true } }
+  async buildPlans(@Param('id') id: string) {
+    return { ok: true };
+  }
 
   @Post('events/:id/ai/relabel')
   @ApiOperation({ summary: 'Re-run normalization' })
   @ApiResponse({ status: 202 })
-  async relabel(@Param('id') id: string) { return { ok: true } }
+  async relabel(@Param('id') id: string) {
+    return { ok: true };
+  }
 
   @Post('ingestion/run')
   @ApiOperation({ summary: 'Run ingestion' })
   @ApiResponse({ status: 202 })
-  async runIngestion() { await this.ingestion.pullTicketmasterNYC(); return { ok: true } }
+  async runIngestion() {
+    await this.ingestion.pullTicketmasterNYC();
+    return { ok: true };
+  }
 }

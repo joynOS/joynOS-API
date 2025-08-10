@@ -17,5 +17,7 @@ export class InterestsController {
   @Get()
   @ApiOperation({ summary: 'List interests' })
   @ApiResponse({ status: 200 })
-  async list() { return this.prisma.interest.findMany({ orderBy: { label: 'asc' } }) }
+  async list() {
+    return this.prisma.interest.findMany({ orderBy: { label: 'asc' } });
+  }
 }

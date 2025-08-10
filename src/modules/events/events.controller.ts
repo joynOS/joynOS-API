@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -27,7 +37,10 @@ export class EventsController {
   @Get('recommendations')
   @ApiOperation({ summary: 'Recommended events' })
   @ApiResponse({ status: 200 })
-  async recommendations(@Query() query: RecommendationsQueryDto, @Req() req: any) {
+  async recommendations(
+    @Query() query: RecommendationsQueryDto,
+    @Req() req: any,
+  ) {
     return this.service.recommendations(req.user?.userId);
   }
 

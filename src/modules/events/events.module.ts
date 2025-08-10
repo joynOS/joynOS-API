@@ -10,7 +10,12 @@ import { QueueModule } from '../queue/queue.module';
 import { forwardRef } from '@nestjs/common';
 
 @Module({
-  imports: [JwtModule.register({}), AIModule, MatchingModule, forwardRef(() => QueueModule)],
+  imports: [
+    JwtModule.register({}),
+    AIModule,
+    MatchingModule,
+    forwardRef(() => QueueModule),
+  ],
   controllers: [EventsController],
   providers: [EventsService, EventsRepository, JwtAuthGuard],
   exports: [EventsService, JwtModule],

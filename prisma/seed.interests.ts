@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
 const interests = [
   { slug: 'jazz-music', emoji: '🎵', label: 'Jazz Music' },
@@ -23,13 +23,13 @@ const interests = [
   { slug: 'cooking', emoji: '👩‍🍳', label: 'Cooking' },
   { slug: 'gardening', emoji: '🌿', label: 'Gardening' },
   { slug: 'coffee', emoji: '☕', label: 'Coffee' },
-]
+];
 
 async function main() {
-  await prisma.interest.createMany({ data: interests, skipDuplicates: true })
-  console.log('Interests seeded')
+  await prisma.interest.createMany({ data: interests, skipDuplicates: true });
+  console.log('Interests seeded');
 }
 
 main().finally(async () => {
-  await prisma.$disconnect()
-})
+  await prisma.$disconnect();
+});

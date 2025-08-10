@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventsRepository } from './events.repository';
 import { VOTING_DEFAULT_DURATION_SECONDS } from '../../common/constants/domain.constants';
 import { AIService } from '../ai/ai.service';
@@ -42,11 +46,18 @@ export class EventsService {
     return { ...event, plans: plans2 };
   }
 
-  private async primePlan(eventId: string, title: string, description: string, emoji?: string) {
+  private async primePlan(
+    eventId: string,
+    title: string,
+    description: string,
+    emoji?: string,
+  ) {
     const current = await this.repo.listPlans(eventId);
     if (current.length >= 2) return;
     // quick create via prisma
-    await (this as any).repo.prisma.plan.create({ data: { eventId, title, description, emoji: emoji ?? null } });
+    await (this as any).repo.prisma.plan.create({
+      data: { eventId, title, description, emoji: emoji ?? null },
+    });
   }
 
   async listPlans(eventId: string) {
@@ -67,7 +78,10 @@ export class EventsService {
     const member = await this.repo.joinEvent(eventId, userId);
     const event = await this.repo.getById(eventId);
     if (event && event.votingState === 'OPEN' && event.votingEndsAt) {
-      const delay = Math.max(0, new Date(event.votingEndsAt).getTime() - Date.now());
+      const delay = Math.max(
+        0,
+        new Date(event.votingEndsAt).getTime() - Date.now(),
+      );
       await this.votingQueue.addCloseJob(eventId, delay);
     }
     return {
@@ -91,10 +105,13 @@ export class EventsService {
   }
 
   async confirmBooking(eventId: string, userId: string, bookingRef?: string) {
-    const event = await this.repo.getById(eventId)
-    if (!event?.selectedPlanId) throw new BadRequestException('Booking is only available after a plan is selected.')
-    const member = await this.repo.confirmBooking(eventId, userId, bookingRef)
-    return { member }
+    const event = await this.repo.getById(eventId);
+    if (!event?.selectedPlanId)
+      throw new BadRequestException(
+        'Booking is only available after a plan is selected.',
+      );
+    const member = await this.repo.confirmBooking(eventId, userId, bookingRef);
+    return { member };
   }
 
   async chatHistory(eventId: string, cursor?: string, limit?: number) {

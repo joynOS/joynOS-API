@@ -19,7 +19,15 @@ import { MatchingModule } from './modules/matching/matching.module';
 // removed global idempotency interceptor; apply per-route
 
 @Module({
-  imports: [DatabaseModule, AuthModule, EventsModule, JwtModule.register({}), AIModule, IngestionModule, MatchingModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    EventsModule,
+    JwtModule.register({}),
+    AIModule,
+    IngestionModule,
+    MatchingModule,
+  ],
   controllers: [
     AppController,
     UsersController,
