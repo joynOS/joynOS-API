@@ -9,7 +9,11 @@ export class IngestionService {
     private readonly ai: AIService,
   ) {}
 
-  async pullTicketmasterNYC() {
+  private async sleep(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  async pullTicketmasterNYC(maxEvents?: number) {
     const apiKey = process.env.TICKETMASTER_API_KEY as string;
     if (!apiKey) throw new Error('Missing TICKETMASTER_API_KEY');
     const dmaId = process.env.TICKETMASTER_DMA || '345';
@@ -23,7 +27,13 @@ export class IngestionService {
 
     const res = await fetch(url.toString());
     const data = await res.json();
-    const items = data._embedded?.events ?? [];
+    const cap = Number(
+      maxEvents ?? process.env.TICKETMASTER_MAX_EVENTS_PER_RUN ?? 5,
+    );
+    const delayMs = Number(process.env.GEMINI_DELAY_MS ?? 1200);
+    const buildPlans =
+      String(process.env.INGESTION_BUILD_PLANS ?? 'true') === 'true';
+    const items = (data._embedded?.events ?? []).slice(0, cap);
 
     for (const e of items) {
       const src = 'ticketmaster';
@@ -77,60 +87,107 @@ export class IngestionService {
         },
       });
 
-      const norm = await this.ai.normalizeEvent({
-        title: event.title,
-        description: event.description ?? undefined,
-        venue: event.venue ?? undefined,
-        tags: event.tags ?? undefined,
-      });
-      const emb = await this.ai.embed(
-        [
-          event.title,
-          event.description ?? '',
-          norm.categories.join(' '),
-          norm.tags.join(' '),
-        ].join('\n'),
-      );
+      let norm: any = {
+        categories: [],
+        tags: [],
+        mappedInterests: [],
+        rationale: '',
+      };
+      let emb: number[] = [];
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          norm = await this.ai.normalizeEvent({
+            title: event.title,
+            description: event.description ?? undefined,
+            venue: event.venue ?? undefined,
+            tags: event.tags ?? undefined,
+          });
+          emb = await this.ai.embed(
+            [
+              event.title,
+              event.description ?? '',
+              norm.categories.join(' '),
+              norm.tags.join(' '),
+            ].join('\n'),
+          );
+          break;
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          if (msg.includes('429') || msg.includes('Too Many Requests'))
+            await this.sleep(11000);
+          else await this.sleep(delayMs);
+        }
+      }
+
+      const mappedSlugs: string[] = Array.isArray(
+        (norm as any)?.mappedInterests,
+      )
+        ? (norm as any).mappedInterests.map((mi: any) => String(mi.id))
+        : [];
+      const slugToWeight = new Map<string, number>();
+      for (const mi of (norm as any)?.mappedInterests ?? []) {
+        slugToWeight.set(String(mi.id), Number(mi.weight) || 1);
+      }
+      const foundInterests = mappedSlugs.length
+        ? await this.prisma.interest.findMany({
+            where: { slug: { in: mappedSlugs } },
+          })
+        : [];
+      const interestCreates = foundInterests.map((i) => ({
+        interestId: i.id,
+        weight: slugToWeight.get(i.slug) || 1,
+      }));
 
       await this.prisma.event.update({
         where: { id: event.id },
         data: {
           aiNormalized: norm as any,
-          aiRaw: { rationale: norm.rationale } as any,
-          embedding: Buffer.from(Float32Array.from(emb as number[]).buffer),
+          aiRaw: { rationale: (norm as any)?.rationale ?? '' } as any,
+          embedding: Buffer.from(
+            Float32Array.from((emb as number[]) || []).buffer,
+          ),
           interests: {
             deleteMany: { eventId: event.id },
-            create: norm.mappedInterests.map((mi) => ({
-              interestId: mi.id,
-              weight: mi.weight,
-            })),
+            create: interestCreates,
           },
         },
       });
 
-      const plansCount = await this.prisma.plan.count({
-        where: { eventId: event.id },
-      });
-      if (plansCount < 2) {
-        try {
-          const built = await this.ai.buildTwoPlans({
-            title: event.title,
-            venue: event.venue ?? undefined,
-            address: event.address ?? undefined,
-            start: event.startTime ?? (undefined as any),
-          });
-          for (const p of built.slice(0, 2 - plansCount)) {
-            await this.prisma.plan.create({
-              data: {
-                eventId: event.id,
-                title: p.title,
-                description: p.description,
-                emoji: p.emoji ?? null,
-              },
-            });
+      if (buildPlans) {
+        const plansCount = await this.prisma.plan.count({
+          where: { eventId: event.id },
+        });
+        if (plansCount < 2) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const built = await this.ai.buildTwoPlans({
+                title: event.title,
+                venue: event.venue ?? undefined,
+                address: event.address ?? undefined,
+                start: event.startTime ?? (undefined as any),
+              });
+              for (const p of built.slice(0, 2 - plansCount)) {
+                await this.prisma.plan.create({
+                  data: {
+                    eventId: event.id,
+                    title: p.title,
+                    description: p.description,
+                    emoji: p.emoji ?? null,
+                  },
+                });
+              }
+              break;
+            } catch (err: any) {
+              const msg = String(err?.message || err);
+              if (msg.includes('429') || msg.includes('Too Many Requests'))
+                await this.sleep(11000);
+              else await this.sleep(delayMs);
+            }
           }
-        } catch {}
+        }
       }
+
+      await this.sleep(delayMs);
     }
   }
 }

@@ -5,7 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AIService } from '../modules/ai/ai.service';
 
 async function main() {
-  const [, , cmd, arg1] = process.argv;
+  const [, , cmd, ...argv] = process.argv;
   if (!cmd) {
     console.error('Usage: ts-node src/cli/runner.ts <command> [args]');
     process.exit(1);
@@ -17,15 +17,30 @@ async function main() {
     switch (cmd) {
       case 'ingest:nyc': {
         const ingestion = app.get(IngestionService);
-        await ingestion.pullTicketmasterNYC();
+        let max: number | undefined;
+        for (let i = 0; i < argv.length; i++) {
+          const a = argv[i];
+          if (a?.startsWith('--max=')) {
+            const val = Number(a.split('=')[1]);
+            if (!Number.isNaN(val)) max = val;
+          } else if (a === '--max') {
+            const next = Number(argv[i + 1]);
+            if (!Number.isNaN(next)) max = next;
+          } else if (/^\d+$/.test(a)) {
+            const val = Number(a);
+            if (!Number.isNaN(val)) max = val;
+          }
+        }
+        await ingestion.pullTicketmasterNYC(max);
         console.log('Ingestion complete');
         break;
       }
       case 'events:ai:build-plans': {
-        if (!arg1) throw new Error('Usage: events:ai:build-plans <eventId>');
+        const eventId = argv[0];
+        if (!eventId) throw new Error('Usage: events:ai:build-plans <eventId>');
         const prisma = app.get(PrismaService);
         const ai = app.get(AIService);
-        const event = await prisma.event.findUnique({ where: { id: arg1 } });
+        const event = await prisma.event.findUnique({ where: { id: eventId } });
         if (!event) throw new Error('Event not found');
         const count = await prisma.plan.count({ where: { eventId: event.id } });
         if (count >= 2) {
