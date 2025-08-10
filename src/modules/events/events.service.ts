@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventsRepository } from './events.repository';
 import { VOTING_DEFAULT_DURATION_SECONDS } from '../../common/constants/domain.constants';
 import { AIService } from '../ai/ai.service';
@@ -91,8 +91,10 @@ export class EventsService {
   }
 
   async confirmBooking(eventId: string, userId: string, bookingRef?: string) {
-    const member = await this.repo.confirmBooking(eventId, userId, bookingRef);
-    return { member };
+    const event = await this.repo.getById(eventId)
+    if (!event?.selectedPlanId) throw new BadRequestException('Booking is only available after a plan is selected.')
+    const member = await this.repo.confirmBooking(eventId, userId, bookingRef)
+    return { member }
   }
 
   async chatHistory(eventId: string, cursor?: string, limit?: number) {

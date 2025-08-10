@@ -60,6 +60,10 @@ export class EventsRepository {
   }
 
   async votePlan(planId: string, userId: string) {
+    const plan = await this.prisma.plan.findUnique({ where: { id: planId } })
+    if (!plan) return
+    const votedAlready = await this.prisma.planVote.findFirst({ where: { userId, plan: { eventId: plan.eventId } } })
+    if (votedAlready) return
     try {
       await this.prisma.planVote.create({ data: { planId, userId } });
       await this.prisma.plan.update({

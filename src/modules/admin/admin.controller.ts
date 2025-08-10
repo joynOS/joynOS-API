@@ -33,16 +33,12 @@ export class AdminController {
   @Post('events/:id/ai/build-plans')
   @ApiOperation({ summary: 'Force AI plan build' })
   @ApiResponse({ status: 202 })
-  buildPlans(@Param('id') id: string) {
-    return { enqueued: true };
-  }
+  async buildPlans(@Param('id') id: string) { return { ok: true } }
 
   @Post('events/:id/ai/relabel')
   @ApiOperation({ summary: 'Re-run normalization' })
   @ApiResponse({ status: 202 })
-  relabel(@Param('id') id: string) {
-    return { enqueued: true };
-  }
+  async relabel(@Param('id') id: string) { return { ok: true } }
 
   @Post('ingestion/run')
   @ApiOperation({ summary: 'Run ingestion' })

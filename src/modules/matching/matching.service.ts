@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../database/prisma.service'
 import { cosineSim } from './utils/cosine'
+import { etaSeconds } from '../../lib/mapbox'
 
 @Injectable()
 export class MatchingService {
@@ -19,16 +20,17 @@ export class MatchingService {
     const radius = q.radiusMiles ?? user.radiusMiles
 
     const rows = (await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT e.* FROM "Event" e
-       WHERE e."startTime" BETWEEN $1 AND $2
+      `SELECT e.*, earth_distance(ll_to_earth($1,$2), ll_to_earth(e.lat,e.lng)) AS dist_meters
+       FROM "Event" e
+       WHERE e."startTime" BETWEEN $3 AND $4
          AND e.lat IS NOT NULL AND e.lng IS NOT NULL
-         AND earth_distance(ll_to_earth($3, $4), ll_to_earth(e.lat, e.lng)) <= $5
+         AND earth_distance(ll_to_earth($1,$2), ll_to_earth(e.lat,e.lng)) <= $5 * 1609.34
        ORDER BY e."startTime" ASC`,
-      from,
-      to,
       user.currentLat,
       user.currentLng,
-      radius * 1609.34,
+      from,
+      to,
+      radius,
     )) as any[]
 
     const uInterests = await this.prisma.userInterest.findMany({ where: { userId } })
@@ -46,13 +48,20 @@ export class MatchingService {
       const evEmb = e.embedding ? new Float32Array(Buffer.from(e.embedding).buffer) : undefined
       const sim = uEmb && evEmb ? cosineSim(uEmb, evEmb) : 0
 
-      const distMiles = 0
+      const distMiles = e.dist_meters ? Number(e.dist_meters) / 1609.34 : 0
       const penalty = Math.max(0, Math.min(1, 1 - distMiles / radius))
 
       const rating = e.rating ? Number(e.rating) : 0
       const rate = Math.max(0, Math.min(1, (rating - 4.0) / 1.0))
 
-      const vibeMatchScoreEvent = Math.round(100 * (0.35 * overlap + 0.35 * sim + 0.15 * rate + 0.15 * penalty))
+      let vibeMatchScoreEvent = Math.round(100 * (0.35 * overlap + 0.35 * sim + 0.15 * rate + 0.15 * penalty))
+      let eta: number | null = null
+      if (user.currentLat && user.currentLng && e.lat && e.lng) {
+        eta = await etaSeconds(Number(user.currentLat), Number(user.currentLng), Number(e.lat), Number(e.lng))
+        if (!eta || eta > 1500) {
+          vibeMatchScoreEvent = Math.max(0, Math.round(vibeMatchScoreEvent * 0.6))
+        }
+      }
 
       const members = await this.prisma.member.findMany({ where: { eventId: e.id, status: { in: ['JOINED', 'COMMITTED'] as any } }, include: { user: true } })
       const cohort = members.length
@@ -73,9 +82,11 @@ export class MatchingService {
         startTime: e.startTime,
         venue: e.venue,
         address: e.address,
+        distanceMiles: distMiles,
         vibeMatchScoreEvent,
         vibeMatchScoreWithOtherUsers: cohort,
         interestedCount: members.length,
+        etaSeconds: eta,
       })
     }
 

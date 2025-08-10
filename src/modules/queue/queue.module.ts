@@ -3,6 +3,8 @@ import IORedis from 'ioredis'
 import { Queue, Worker } from 'bullmq'
 import { EventsService } from '../events/events.service'
 import { EventsModule } from '../events/events.module'
+import { IngestionService } from '../ingestion/ingestion.service'
+import { IngestionModule } from '../ingestion/ingestion.module'
 
 export const connection = new IORedis(process.env.REDIS_URL as string, {
   maxRetriesPerRequest: null as any,
@@ -33,5 +35,28 @@ export class VotingWorker implements OnModuleInit {
   }
 }
 
-@Module({ imports: [forwardRef(() => EventsModule)], providers: [VotingQueueService, VotingWorker], exports: [VotingQueueService] })
+export class IngestionQueueService implements OnModuleInit {
+  private readonly queue = new Queue('ingestion', { connection })
+  constructor(private readonly ingestion: IngestionService) {}
+  async onModuleInit() {
+    const cron = process.env.INGESTION_CRON || '0 * * * *'
+    const jobId = 'ingestion:ticketmaster'
+    await this.queue.add(
+      'ticketmasterNYC',
+      {},
+      { repeat: { pattern: cron, jobId }, removeOnComplete: true, removeOnFail: true },
+    )
+    new Worker(
+      'ingestion',
+      async (job) => {
+        if (job.name === 'ticketmasterNYC') {
+          await this.ingestion.pullTicketmasterNYC()
+        }
+      },
+      { connection },
+    )
+  }
+}
+
+@Module({ imports: [forwardRef(() => EventsModule), IngestionModule], providers: [VotingQueueService, VotingWorker, IngestionQueueService], exports: [VotingQueueService, IngestionQueueService] })
 export class QueueModule {}

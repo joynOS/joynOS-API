@@ -16,8 +16,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AIModule } from './modules/ai/ai.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { MatchingModule } from './modules/matching/matching.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
+// removed global idempotency interceptor; apply per-route
 
 @Module({
   imports: [DatabaseModule, AuthModule, EventsModule, JwtModule.register({}), AIModule, IngestionModule, MatchingModule],
@@ -34,7 +33,6 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     UsersRepository,
     EventsRepository,
     JwtAuthGuard,
-    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule {}

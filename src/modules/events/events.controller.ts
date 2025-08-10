@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards, UseInterceptors } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -17,6 +8,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { MembershipGuard } from '../../common/guards/membership.guard';
 import { EventsService } from './events.service';
+import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import {
   BookingConfirmDto,
   CommitDto,
@@ -57,6 +49,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Vote plan' })
   @ApiResponse({ status: 200 })
   @UseGuards(MembershipGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   async vote(
     @Param('id') id: string,
     @Param('planId') planId: string,
@@ -75,6 +68,7 @@ export class EventsController {
   @Post(':id/join')
   @ApiOperation({ summary: 'Join event' })
   @ApiResponse({ status: 200 })
+  @UseInterceptors(IdempotencyInterceptor)
   async join(@Param() params: EventIdParamDto, @Req() req: any) {
     return this.service.join(params.id, req.user.userId);
   }
@@ -108,6 +102,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Confirm booking' })
   @ApiResponse({ status: 200 })
   @UseGuards(MembershipGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   async confirmBooking(
     @Param() params: EventIdParamDto,
     @Body() dto: BookingConfirmDto,
