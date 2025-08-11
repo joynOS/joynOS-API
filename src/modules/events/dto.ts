@@ -1,11 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
-  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -54,6 +52,21 @@ export class VotePathDto {
 
 export class EventIdParamDto {
   @ApiProperty() @IsString() id: string;
+}
+
+export class BrowseEventsQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() from?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() to?: string;
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  tags?: string[];
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  take?: number;
 }
 
 export class PaginationQueryDto {

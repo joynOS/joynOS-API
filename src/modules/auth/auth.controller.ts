@@ -52,4 +52,19 @@ export class AuthController {
     if (!payload?.sub) return { ok: true };
     return this.auth.logout(payload.sub);
   }
+
+  @Post('signin/phone/request')
+  @ApiOperation({ summary: 'Request phone verification code' })
+  @ApiResponse({ status: 200 })
+  requestPhone() {
+    return { sent: true, code: '4444' };
+  }
+
+  @Post('signin/phone/verify')
+  @ApiOperation({ summary: 'Verify phone code and sign in' })
+  @ApiResponse({ status: 200 })
+  verifyPhone(@Body() body: { phone: string; code: string; name?: string }) {
+    if (body.code !== '4444') return { error: 'invalid_code' };
+    return this.auth.signinByPhone(body.phone, body.name);
+  }
 }

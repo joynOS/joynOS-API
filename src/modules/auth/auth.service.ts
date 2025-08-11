@@ -27,6 +27,23 @@ export class AuthService {
     return this.issueTokens(user.id);
   }
 
+  async signinByPhone(phone: string, name?: string) {
+    const emailAlias = `phone:${phone}`;
+    let user = await this.usersRepo.findByEmail(emailAlias);
+    if (!user) {
+      const passwordHash = await bcrypt.hash(
+        `phone:${phone}:${randomUUID()}`,
+        10,
+      );
+      user = await this.usersRepo.create({
+        email: emailAlias,
+        name: name || `User ${phone}`,
+        passwordHash,
+      });
+    }
+    return this.issueTokens(user.id);
+  }
+
   async issueTokens(userId: string) {
     const access = await this.jwt.signAsync(
       { sub: userId },

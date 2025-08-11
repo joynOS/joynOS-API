@@ -27,6 +27,15 @@ export class EventsService {
     return { items, nextCursor: null };
   }
 
+  async browse(params: {
+    from?: Date;
+    to?: Date;
+    tags?: string[];
+    take?: number;
+  }) {
+    return this.repo.browseEvents(params);
+  }
+
   async detail(eventId: string) {
     const event = await this.repo.getById(eventId);
     if (!event) throw new NotFoundException();

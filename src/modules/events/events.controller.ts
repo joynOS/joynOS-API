@@ -21,6 +21,7 @@ import { EventsService } from './events.service';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import {
   BookingConfirmDto,
+  BrowseEventsQueryDto,
   CommitDto,
   CreateMessageDto,
   EventIdParamDto,
@@ -42,6 +43,13 @@ export class EventsController {
     @Req() req: any,
   ) {
     return this.service.recommendations(req.user?.userId);
+  }
+
+  @Get('browse')
+  @ApiOperation({ summary: 'Browse events' })
+  @ApiResponse({ status: 200 })
+  async browse(@Query() query: BrowseEventsQueryDto) {
+    return this.service.browse(query as any);
   }
 
   @Get(':id')

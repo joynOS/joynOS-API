@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { PreferencesDto, UpdateMeDto, UserInterestsDto } from './dto';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly repo: UsersRepository) {}
+  constructor(
+    private readonly repo: UsersRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async me(userId: string) {
     const user = await this.repo.findById(userId);
@@ -20,6 +24,17 @@ export class UsersService {
   }
 
   async setInterests(userId: string, dto: UserInterestsDto) {
-    return this.repo.update(userId, { interests: dto.interestIds } as any);
+    await this.prisma.userInterest.deleteMany({ where: { userId } });
+    if (dto.interestIds?.length) {
+      await this.prisma.userInterest.createMany({
+        data: dto.interestIds.map((interestId) => ({
+          userId,
+          interestId,
+          weight: 1,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    return this.repo.findById(userId);
   }
 }

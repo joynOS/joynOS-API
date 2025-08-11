@@ -59,6 +59,51 @@ export class EventsRepository {
     return this.prisma.plan.findMany({ where: { eventId } });
   }
 
+  async browseEvents(params: {
+    from?: Date;
+    to?: Date;
+    tags?: string[];
+    take?: number;
+  }) {
+    const where: any = {};
+    if (params.from || params.to) {
+      where.startTime = {};
+      if (params.from) where.startTime.gte = params.from;
+      if (params.to) where.startTime.lte = params.to;
+    }
+    if (params.tags && params.tags.length) {
+      where.tags = { hasSome: params.tags };
+    }
+    return this.prisma.event.findMany({
+      where,
+      orderBy: { startTime: 'asc' },
+      take: params.take ?? 100,
+      select: {
+        id: true,
+        title: true,
+        externalBookingUrl: true,
+        aiNormalized: true,
+        aiRaw: true,
+        source: true,
+        sourceId: true,
+        votingState: true,
+        selectedPlanId: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        address: true,
+        tags: true,
+        description: true,
+        imageUrl: true,
+        votingEndsAt: true,
+        createdAt: true,
+        updatedAt: true,
+        lat: true,
+        lng: true,
+      },
+    });
+  }
+
   async votePlan(planId: string, userId: string) {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan) return;

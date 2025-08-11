@@ -11,6 +11,26 @@ export class MatchingService {
     return distMeters / 1609.34;
   }
 
+  private haversineMiles(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ) {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const R = 3958.7613; // earth radius in miles
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
   async recommendationsForUser(
     userId: string,
     q: { from?: Date; to?: Date; tags?: string[]; radiusMiles?: number },
@@ -22,19 +42,51 @@ export class MatchingService {
     const to = q.to ?? new Date(Date.now() + 7 * 24 * 3600 * 1000);
     const radius = q.radiusMiles ?? user.radiusMiles;
 
-    const rows = (await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT e.*, earth_distance(ll_to_earth($1,$2), ll_to_earth(e.lat,e.lng)) AS dist_meters
-       FROM "Event" e
-       WHERE e."startTime" BETWEEN $3 AND $4
-         AND e.lat IS NOT NULL AND e.lng IS NOT NULL
-         AND earth_distance(ll_to_earth($1,$2), ll_to_earth(e.lat,e.lng)) <= $5 * 1609.34
-       ORDER BY e."startTime" ASC`,
-      user.currentLat,
-      user.currentLng,
-      from,
-      to,
-      radius,
-    )) as any[];
+    let rows: any[] = [];
+    try {
+      rows = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT e.*, earth_distance(
+            ll_to_earth(CAST($1 AS float8), CAST($2 AS float8)),
+            ll_to_earth(e.lat::float8, e.lng::float8)
+          ) AS dist_meters
+         FROM "Event" e
+         WHERE e."startTime" BETWEEN $3 AND $4
+           AND e.lat IS NOT NULL AND e.lng IS NOT NULL
+           AND earth_distance(
+             ll_to_earth(CAST($1 AS float8), CAST($2 AS float8)),
+             ll_to_earth(e.lat::float8, e.lng::float8)
+           ) <= $5 * 1609.34
+         ORDER BY e."startTime" ASC`,
+        user.currentLat,
+        user.currentLng,
+        from,
+        to,
+        radius,
+      )) as any[];
+    } catch (err) {
+      const candidates = await this.prisma.event.findMany({
+        where: {
+          startTime: { gte: from, lte: to },
+          lat: { not: null },
+          lng: { not: null },
+        },
+        orderBy: { startTime: 'asc' },
+      });
+      const uLat = Number(user.currentLat);
+      const uLng = Number(user.currentLng);
+      for (const e of candidates) {
+        const miles = this.haversineMiles(
+          uLat,
+          uLng,
+          Number(e.lat),
+          Number(e.lng),
+        );
+        if (miles <= radius) {
+          (e as any).dist_meters = miles * 1609.34;
+          rows.push(e);
+        }
+      }
+    }
 
     const uInterests = await this.prisma.userInterest.findMany({
       where: { userId },
