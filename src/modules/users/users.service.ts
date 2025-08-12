@@ -12,7 +12,11 @@ export class UsersService {
 
   async me(userId: string) {
     const user = await this.repo.findById(userId);
-    return user;
+    if (!user) return null;
+    const interestsCount = await this.prisma.userInterest.count({
+      where: { userId },
+    });
+    return { ...user, hasInterests: interestsCount > 0 } as any;
   }
 
   async update(userId: string, dto: UpdateMeDto) {

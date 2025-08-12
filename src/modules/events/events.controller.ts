@@ -55,8 +55,19 @@ export class EventsController {
   @Get(':id')
   @ApiOperation({ summary: 'Event detail' })
   @ApiResponse({ status: 200 })
-  async detail(@Param() params: EventIdParamDto) {
-    return this.service.detail(params.id);
+  async detail(@Param() params: EventIdParamDto, @Req() req: any) {
+    const data = await this.service.detail(params.id);
+    let isMember = false;
+    if (req?.user?.userId) {
+      const prisma = (this as any).service.repo.prisma as any;
+      const m = await prisma.member.findUnique({
+        where: {
+          eventId_userId: { eventId: params.id, userId: req.user.userId },
+        },
+      });
+      isMember = !!m;
+    }
+    return { ...data, isMember };
   }
 
   @Get(':id/plans')
