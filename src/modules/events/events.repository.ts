@@ -277,7 +277,7 @@ export class EventsRepository {
     });
   }
 
-  async getBooking(eventId: string) {
+  async getBooking(eventId: string, currentUserId?: string) {
     const event = await this.getById(eventId);
     if (!event) return null;
     const plan = event.selectedPlanId
@@ -285,10 +285,30 @@ export class EventsRepository {
           where: { id: event.selectedPlanId },
         })
       : null;
-    return { externalBookingUrl: event.externalBookingUrl, selectedPlan: plan };
+
+    let isBooked = false;
+    if (currentUserId) {
+      const member = await this.prisma.member.findUnique({
+        where: {
+          eventId_userId: { eventId, userId: currentUserId },
+        },
+      });
+      isBooked = member?.bookingStatus === 'BOOKED';
+    }
+
+    return {
+      externalBookingUrl: event.externalBookingUrl,
+      selectedPlan: plan,
+      isBooked,
+    };
   }
 
-  async listChat(eventId: string, cursor?: string, limit: number = 50, currentUserId?: string) {
+  async listChat(
+    eventId: string,
+    cursor?: string,
+    limit: number = 50,
+    currentUserId?: string,
+  ) {
     const items = await this.prisma.eventMessage.findMany({
       where: { eventId },
       orderBy: { createdAt: 'asc' },
@@ -304,7 +324,7 @@ export class EventsRepository {
       },
     });
 
-    const messagesWithUserInfo = items.map(item => ({
+    const messagesWithUserInfo = items.map((item) => ({
       ...item,
       isMe: currentUserId ? item.userId === currentUserId : false,
       user: item.user,

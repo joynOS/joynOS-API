@@ -136,8 +136,8 @@ export class EventsController {
   @Get(':id/booking')
   @ApiOperation({ summary: 'Get booking info' })
   @ApiResponse({ status: 200 })
-  async booking(@Param() params: EventIdParamDto) {
-    return this.service.bookingInfo(params.id);
+  async booking(@Param() params: EventIdParamDto, @Req() req: any) {
+    return this.service.bookingInfo(params.id, req.user?.userId);
   }
 
   @Post(':id/booking/confirm')

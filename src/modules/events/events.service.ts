@@ -155,8 +155,8 @@ export class EventsService {
     return { member };
   }
 
-  async bookingInfo(eventId: string) {
-    return this.repo.getBooking(eventId);
+  async bookingInfo(eventId: string, currentUserId?: string) {
+    return this.repo.getBooking(eventId, currentUserId);
   }
 
   async confirmBooking(eventId: string, userId: string, bookingRef?: string) {
