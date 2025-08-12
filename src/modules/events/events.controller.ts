@@ -35,6 +35,13 @@ import {
 export class EventsController {
   constructor(private readonly service: EventsService) {}
 
+  @Get('my')
+  @ApiOperation({ summary: 'My events' })
+  @ApiResponse({ status: 200 })
+  async my(@Req() req: any) {
+    return this.service.myEvents(req.user?.userId);
+  }
+
   @Get('recommendations')
   @ApiOperation({ summary: 'Recommended events' })
   @ApiResponse({ status: 200 })

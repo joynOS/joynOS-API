@@ -4,7 +4,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventsRepository } from './events.repository';
-import { VOTING_DEFAULT_DURATION_SECONDS } from '../../common/constants/domain.constants';
 import { AIService } from '../ai/ai.service';
 import { MatchingService } from '../matching/matching.service';
 import { VotingQueueService } from '../queue/queue.module';
@@ -34,6 +33,10 @@ export class EventsService {
     take?: number;
   }) {
     return this.repo.browseEvents(params);
+  }
+
+  async myEvents(userId: string) {
+    return this.repo.listMyEvents(userId);
   }
 
   async detail(eventId: string) {

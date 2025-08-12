@@ -104,6 +104,47 @@ export class EventsRepository {
     });
   }
 
+  async listMyEvents(userId: string) {
+    const memberships = await this.prisma.member.findMany({
+      where: {
+        userId,
+        status: { in: ['JOINED' as any, 'COMMITTED' as any] },
+      },
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            externalBookingUrl: true,
+            aiNormalized: true,
+            aiRaw: true,
+            source: true,
+            sourceId: true,
+            votingState: true,
+            selectedPlanId: true,
+            startTime: true,
+            endTime: true,
+            venue: true,
+            address: true,
+            tags: true,
+            description: true,
+            imageUrl: true,
+            votingEndsAt: true,
+            createdAt: true,
+            updatedAt: true,
+            lat: true,
+            lng: true,
+          },
+        },
+      },
+    });
+
+    return memberships.map((m: any) => ({
+      ...m.event,
+      member: { status: m.status, bookingStatus: m.bookingStatus },
+    }));
+  }
+
   async votePlan(planId: string, userId: string) {
     const plan = await this.prisma.plan.findUnique({ where: { id: planId } });
     if (!plan) return;
