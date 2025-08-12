@@ -7,6 +7,8 @@ import { EventsRepository } from './events.repository';
 import { AIService } from '../ai/ai.service';
 import { MatchingService } from '../matching/matching.service';
 import { VotingQueueService } from '../queue/queue.module';
+import { calculateVibeScores } from '../matching/utils/vibe';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class EventsService {
@@ -15,6 +17,7 @@ export class EventsService {
     private readonly ai: AIService,
     private readonly matching: MatchingService,
     private readonly votingQueue: VotingQueueService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async recommendations(userId?: string) {
@@ -31,15 +34,49 @@ export class EventsService {
     to?: Date;
     tags?: string[];
     take?: number;
+    userId?: string;
   }) {
-    return this.repo.browseEvents(params);
+    const events = await this.repo.browseEvents(params);
+
+    if (!params.userId) {
+      return events;
+    }
+
+    const eventsWithScores = await Promise.all(
+      events.map(async (event) => {
+        const scores = await this.calculateVibeScoresForEvent(
+          event,
+          params.userId!,
+        );
+        return {
+          ...event,
+          ...scores,
+        };
+      }),
+    );
+
+    return eventsWithScores.sort(
+      (a, b) => b.vibeMatchScoreEvent - a.vibeMatchScoreEvent,
+    );
   }
 
   async myEvents(userId: string) {
-    return this.repo.listMyEvents(userId);
+    const events = await this.repo.listMyEvents(userId);
+
+    const eventsWithScores = await Promise.all(
+      events.map(async (event) => {
+        const scores = await this.calculateVibeScoresForEvent(event, userId);
+        return {
+          ...event,
+          ...scores,
+        };
+      }),
+    );
+
+    return eventsWithScores;
   }
 
-  async detail(eventId: string) {
+  async detail(eventId: string, userId?: string) {
     const event = await this.repo.getById(eventId);
     if (!event) throw new NotFoundException();
     const ensured = await this.repo.ensureTwoPlans(eventId);
@@ -55,7 +92,13 @@ export class EventsService {
       }
     }
     const plans2 = await this.repo.listPlans(eventId);
-    return { ...event, plans: plans2 };
+
+    let scores = {};
+    if (userId) {
+      scores = await this.calculateVibeScoresForEvent(event, userId);
+    }
+
+    return { ...event, plans: plans2, ...scores };
   }
 
   private async primePlan(
@@ -126,11 +169,115 @@ export class EventsService {
     return { member };
   }
 
-  async chatHistory(eventId: string, cursor?: string, limit?: number) {
-    return this.repo.listChat(eventId, cursor, limit);
+  async chatHistory(eventId: string, cursor?: string, limit?: number, currentUserId?: string) {
+    return this.repo.listChat(eventId, cursor, limit, currentUserId);
   }
 
   async createMessage(eventId: string, userId: string, text: string) {
     return this.repo.postMessage(eventId, userId, text);
+  }
+
+  private async calculateVibeScoresForEvent(event: any, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        interests: true,
+      },
+    });
+
+    if (!user) {
+      return {
+        vibeMatchScoreEvent: 0,
+        vibeMatchScoreWithOtherUsers: 0,
+        distanceMiles: null,
+      };
+    }
+
+    const eventInterests = await this.prisma.eventInterest.findMany({
+      where: { eventId: event.id },
+    });
+
+    const eventMembers = await this.prisma.member.findMany({
+      where: {
+        eventId: event.id,
+        status: { in: ['JOINED', 'COMMITTED'] },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+            embedding: true,
+          },
+        },
+      },
+    });
+
+    const userEmbedding = user.embedding
+      ? new Float32Array(Buffer.from(user.embedding).buffer)
+      : undefined;
+
+    const eventEmbedding = event.embedding
+      ? new Float32Array(Buffer.from(event.embedding).buffer)
+      : undefined;
+
+    const otherMembers = eventMembers.filter((m) => m.userId !== userId);
+    const cohortMemberEmbeddings = otherMembers.map((m) =>
+      m.user.embedding
+        ? new Float32Array(Buffer.from(m.user.embedding).buffer)
+        : undefined,
+    );
+
+    const first5Participants = eventMembers.slice(0, 5).map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      avatar: m.user.avatar,
+      status: m.status,
+    }));
+
+    let distanceMiles: number | null = null;
+    if (user.currentLat && user.currentLng && event.lat && event.lng) {
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const R = 3958.7613;
+      const lat1 = Number(user.currentLat);
+      const lng1 = Number(user.currentLng);
+      const lat2 = Number(event.lat);
+      const lng2 = Number(event.lng);
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) *
+          Math.cos(toRad(lat2)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceMiles = R * c;
+    }
+
+    const scores = calculateVibeScores({
+      userEmbedding,
+      eventEmbedding,
+      userInterests: user.interests.map((i) => ({
+        interestId: i.interestId,
+        weight: i.weight,
+      })),
+      eventInterests: eventInterests.map((i) => ({
+        interestId: i.interestId,
+        weight: i.weight,
+      })),
+      distanceMiles,
+      radiusMiles: user.radiusMiles,
+      rating: event.rating ? Number(event.rating) : null,
+      cohortMemberEmbeddings,
+    });
+
+    return {
+      ...scores,
+      distanceMiles,
+      interestedCount: eventMembers.length,
+      participants: first5Participants,
+    };
   }
 }

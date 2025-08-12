@@ -27,11 +27,63 @@ export class EventsRepository {
     return this.prisma.event.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        externalBookingUrl: true,
+        aiNormalized: true,
+        aiRaw: true,
+        source: true,
+        sourceId: true,
+        votingState: true,
+        selectedPlanId: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        address: true,
+        tags: true,
+        votingEndsAt: true,
+        createdAt: true,
+        updatedAt: true,
+        lat: true,
+        lng: true,
+        rating: true,
+        embedding: true,
+      },
     });
   }
 
   async getById(id: string) {
-    return this.prisma.event.findUnique({ where: { id } });
+    return this.prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        externalBookingUrl: true,
+        aiNormalized: true,
+        aiRaw: true,
+        source: true,
+        sourceId: true,
+        votingState: true,
+        selectedPlanId: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        address: true,
+        tags: true,
+        votingEndsAt: true,
+        createdAt: true,
+        updatedAt: true,
+        lat: true,
+        lng: true,
+        rating: true,
+        embedding: true,
+      },
+    });
   }
 
   async ensureTwoPlans(eventId: string) {
@@ -100,6 +152,8 @@ export class EventsRepository {
         updatedAt: true,
         lat: true,
         lng: true,
+        rating: true,
+        embedding: true,
       },
     });
   }
@@ -134,6 +188,8 @@ export class EventsRepository {
             updatedAt: true,
             lat: true,
             lng: true,
+            rating: true,
+            embedding: true,
           },
         },
       },
@@ -232,13 +288,29 @@ export class EventsRepository {
     return { externalBookingUrl: event.externalBookingUrl, selectedPlan: plan };
   }
 
-  async listChat(eventId: string, cursor?: string, limit: number = 50) {
+  async listChat(eventId: string, cursor?: string, limit: number = 50, currentUserId?: string) {
     const items = await this.prisma.eventMessage.findMany({
       where: { eventId },
       orderBy: { createdAt: 'asc' },
       take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
     });
-    return { items, nextCursor: null };
+
+    const messagesWithUserInfo = items.map(item => ({
+      ...item,
+      isMe: currentUserId ? item.userId === currentUserId : false,
+      user: item.user,
+    }));
+
+    return { items: messagesWithUserInfo, nextCursor: null };
   }
 
   async postMessage(eventId: string, userId: string, text: string) {

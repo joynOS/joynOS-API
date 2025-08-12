@@ -55,15 +55,18 @@ export class EventsController {
   @Get('browse')
   @ApiOperation({ summary: 'Browse events' })
   @ApiResponse({ status: 200 })
-  async browse(@Query() query: BrowseEventsQueryDto) {
-    return this.service.browse(query as any);
+  async browse(@Query() query: BrowseEventsQueryDto, @Req() req: any) {
+    return this.service.browse({
+      ...query,
+      userId: req.user?.userId,
+    } as any);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Event detail' })
   @ApiResponse({ status: 200 })
   async detail(@Param() params: EventIdParamDto, @Req() req: any) {
-    const data = await this.service.detail(params.id);
+    const data = await this.service.detail(params.id, req.user?.userId);
     let isMember = false;
     if (req?.user?.userId) {
       const prisma = (this as any).service.repo.prisma as any;
@@ -159,10 +162,11 @@ export class EventsController {
   @ApiResponse({ status: 200 })
   async chatHistory(
     @Param() params: EventIdParamDto,
+    @Req() req: any,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: number,
   ) {
-    return this.service.chatHistory(params.id, cursor, limit);
+    return this.service.chatHistory(params.id, cursor, limit, req.user?.userId);
   }
 
   @Post(':id/chat')

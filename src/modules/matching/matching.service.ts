@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { cosineSim } from './utils/cosine';
+import { calculateVibeScores } from './utils/vibe';
 import { etaSeconds } from '../../lib/mapbox';
 
 @Injectable()
@@ -100,27 +100,54 @@ export class MatchingService {
       const evInts = await this.prisma.eventInterest.findMany({
         where: { eventId: e.id },
       });
-      const sumUser = uInterests.reduce((s, r) => s + r.weight, 0) || 1;
-      const overlap =
-        uInterests.reduce((s, ui) => {
-          const ev = evInts.find((x) => x.interestId === ui.interestId);
-          return s + Math.min(ui.weight, ev?.weight ?? 0);
-        }, 0) / sumUser;
 
       const evEmb = e.embedding
         ? new Float32Array(Buffer.from(e.embedding).buffer)
         : undefined;
-      const sim = uEmb && evEmb ? cosineSim(uEmb, evEmb) : 0;
 
       const distMiles = e.dist_meters ? Number(e.dist_meters) / 1609.34 : 0;
-      const penalty = Math.max(0, Math.min(1, 1 - distMiles / radius));
 
-      const rating = e.rating ? Number(e.rating) : 0;
-      const rate = Math.max(0, Math.min(1, (rating - 4.0) / 1.0));
+      const members = await this.prisma.member.findMany({
+        where: {
+          eventId: e.id,
+          status: { in: ['JOINED', 'COMMITTED'] as any },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              avatar: true,
+              embedding: true,
+            },
+          },
+        },
+      });
 
-      let vibeMatchScoreEvent = Math.round(
-        100 * (0.35 * overlap + 0.35 * sim + 0.15 * rate + 0.15 * penalty),
+      const cohortMemberEmbeddings = members.map((m) =>
+        m.user.embedding
+          ? new Float32Array(Buffer.from(m.user.embedding).buffer)
+          : undefined,
       );
+
+      const scores = calculateVibeScores({
+        userEmbedding: uEmb,
+        eventEmbedding: evEmb,
+        userInterests: uInterests.map((i) => ({
+          interestId: i.interestId,
+          weight: i.weight,
+        })),
+        eventInterests: evInts.map((i) => ({
+          interestId: i.interestId,
+          weight: i.weight,
+        })),
+        distanceMiles: distMiles,
+        radiusMiles: radius,
+        rating: e.rating ? Number(e.rating) : null,
+        cohortMemberEmbeddings,
+      });
+
+      let vibeMatchScoreEvent = scores.vibeMatchScoreEvent;
       let eta: number | null = null;
       if (user.currentLat && user.currentLng && e.lat && e.lng) {
         eta = await etaSeconds(
@@ -137,25 +164,12 @@ export class MatchingService {
         }
       }
 
-      const members = await this.prisma.member.findMany({
-        where: {
-          eventId: e.id,
-          status: { in: ['JOINED', 'COMMITTED'] as any },
-        },
-        include: { user: true },
-      });
-      const cohort = members.length
-        ? Math.round(
-            100 *
-              (members.reduce((s, m) => {
-                const me = m.user.embedding
-                  ? new Float32Array(Buffer.from(m.user.embedding).buffer)
-                  : undefined;
-                return s + (uEmb && me ? cosineSim(uEmb, me) : 0);
-              }, 0) /
-                members.length),
-          )
-        : 0;
+      const first5Participants = members.slice(0, 5).map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        avatar: m.user.avatar,
+        status: m.status,
+      }));
 
       cards.push({
         eventId: e.id,
@@ -166,8 +180,9 @@ export class MatchingService {
         address: e.address,
         distanceMiles: distMiles,
         vibeMatchScoreEvent,
-        vibeMatchScoreWithOtherUsers: cohort,
+        vibeMatchScoreWithOtherUsers: scores.vibeMatchScoreWithOtherUsers,
         interestedCount: members.length,
+        participants: first5Participants,
         etaSeconds: eta,
       });
     }
