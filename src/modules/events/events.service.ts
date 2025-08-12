@@ -42,18 +42,17 @@ export class EventsService {
       return events;
     }
 
-    const eventsWithScores = await Promise.all(
-      events.map(async (event) => {
-        const scores = await this.calculateVibeScoresForEvent(
-          event,
-          params.userId!,
-        );
-        return {
-          ...event,
-          ...scores,
-        };
-      }),
-    );
+    const eventsWithScores: any[] = [];
+    for (const event of events) {
+      const scores = await this.calculateVibeScoresForEvent(
+        event,
+        params.userId!,
+      );
+      eventsWithScores.push({
+        ...event,
+        ...scores,
+      });
+    }
 
     return eventsWithScores.sort(
       (a, b) => b.vibeMatchScoreEvent - a.vibeMatchScoreEvent,
@@ -63,15 +62,14 @@ export class EventsService {
   async myEvents(userId: string) {
     const events = await this.repo.listMyEvents(userId);
 
-    const eventsWithScores = await Promise.all(
-      events.map(async (event) => {
-        const scores = await this.calculateVibeScoresForEvent(event, userId);
-        return {
-          ...event,
-          ...scores,
-        };
-      }),
-    );
+    const eventsWithScores: any[] = [];
+    for (const event of events) {
+      const scores = await this.calculateVibeScoresForEvent(event, userId);
+      eventsWithScores.push({
+        ...event,
+        ...scores,
+      });
+    }
 
     return eventsWithScores;
   }
@@ -169,7 +167,12 @@ export class EventsService {
     return { member };
   }
 
-  async chatHistory(eventId: string, cursor?: string, limit?: number, currentUserId?: string) {
+  async chatHistory(
+    eventId: string,
+    cursor?: string,
+    limit?: number,
+    currentUserId?: string,
+  ) {
     return this.repo.listChat(eventId, cursor, limit, currentUserId);
   }
 
@@ -215,11 +218,21 @@ export class EventsService {
     });
 
     const userEmbedding = user.embedding
-      ? new Float32Array(Buffer.from(user.embedding).buffer)
+      ? new Float32Array(
+          user.embedding.buffer.slice(
+            user.embedding.byteOffset,
+            user.embedding.byteOffset + user.embedding.byteLength,
+          ),
+        )
       : undefined;
 
     const eventEmbedding = event.embedding
-      ? new Float32Array(Buffer.from(event.embedding).buffer)
+      ? new Float32Array(
+          event.embedding.buffer.slice(
+            event.embedding.byteOffset,
+            event.embedding.byteOffset + event.embedding.byteLength,
+          ),
+        )
       : undefined;
 
     const otherMembers = eventMembers.filter((m) => m.userId !== userId);

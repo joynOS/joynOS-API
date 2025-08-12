@@ -128,7 +128,7 @@ export class EventsRepository {
     }
     return this.prisma.event.findMany({
       where,
-      orderBy: { startTime: 'asc' },
+      orderBy: [{ startTime: 'asc' }, { id: 'asc' }],
       take: params.take ?? 100,
       select: {
         id: true,
