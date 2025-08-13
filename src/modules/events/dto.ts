@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -35,7 +36,10 @@ export class JoinEventResponseDto {
 }
 
 export class CommitDto {
-  @ApiProperty({ enum: ['IN', 'OUT'] }) decision: 'IN' | 'OUT';
+  @ApiProperty({ enum: ['IN', 'OUT'] })
+  @IsString()
+  @IsIn(['IN', 'OUT'])
+  decision: 'IN' | 'OUT';
 }
 
 export class BookingConfirmDto {

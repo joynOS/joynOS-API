@@ -287,19 +287,30 @@ export class EventsRepository {
       : null;
 
     let isBooked = false;
+    let isCommitted = false;
+    let commitStatus: string | null = null;
+
     if (currentUserId) {
       const member = await this.prisma.member.findUnique({
         where: {
           eventId_userId: { eventId, userId: currentUserId },
         },
       });
-      isBooked = member?.bookingStatus === 'BOOKED';
+
+      if (member) {
+        isBooked = member.bookingStatus === 'BOOKED';
+        isCommitted =
+          member.status === 'COMMITTED' || member.status === 'CANT_MAKE_IT';
+        commitStatus = isCommitted ? member.status : null;
+      }
     }
 
     return {
       externalBookingUrl: event.externalBookingUrl,
       selectedPlan: plan,
       isBooked,
+      isCommitted,
+      commitStatus,
     };
   }
 
