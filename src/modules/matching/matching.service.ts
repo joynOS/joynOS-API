@@ -7,6 +7,38 @@ import { etaSeconds } from '../../lib/mapbox';
 export class MatchingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async getGeneralRecommendations() {
+    return this.prisma.event.findMany({
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        externalBookingUrl: true,
+        aiNormalized: true,
+        aiRaw: true,
+        source: true,
+        sourceId: true,
+        votingState: true,
+        selectedPlanId: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        address: true,
+        tags: true,
+        votingEndsAt: true,
+        createdAt: true,
+        updatedAt: true,
+        lat: true,
+        lng: true,
+        rating: true,
+        embedding: true,
+      },
+    });
+  }
+
   private toMiles(distMeters: number) {
     return distMeters / 1609.34;
   }
@@ -36,55 +68,42 @@ export class MatchingService {
     q: { from?: Date; to?: Date; tags?: string[]; radiusMiles?: number },
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.currentLat || !user?.currentLng) return [];
 
-    const from = q.from ?? new Date();
-    const to = q.to ?? new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    if (!user?.currentLat || !user?.currentLng) {
+      // Fallback: retornar recomendações gerais sem filtro geográfico
+      return this.getGeneralRecommendations();
+    }
+
+    // Usar range mais amplo para recomendações: últimos 30 dias até próximos 365 dias
+    const from = q.from ?? new Date(Date.now() - 30 * 24 * 3600 * 1000); // 30 dias atrás
+    const to = q.to ?? new Date(Date.now() + 365 * 24 * 3600 * 1000); // 365 dias à frente
     const radius = q.radiusMiles ?? user.radiusMiles;
 
-    let rows: any[] = [];
-    try {
-      rows = (await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT e.*, earth_distance(
-            ll_to_earth(CAST($1 AS float8), CAST($2 AS float8)),
-            ll_to_earth(e.lat::float8, e.lng::float8)
-          ) AS dist_meters
-         FROM "Event" e
-         WHERE e."startTime" BETWEEN $3 AND $4
-           AND e.lat IS NOT NULL AND e.lng IS NOT NULL
-           AND earth_distance(
-             ll_to_earth(CAST($1 AS float8), CAST($2 AS float8)),
-             ll_to_earth(e.lat::float8, e.lng::float8)
-           ) <= $5 * 1609.34
-         ORDER BY e."startTime" ASC`,
-        user.currentLat,
-        user.currentLng,
-        from,
-        to,
-        radius,
-      )) as any[];
-    } catch (err) {
-      const candidates = await this.prisma.event.findMany({
-        where: {
-          startTime: { gte: from, lte: to },
-          lat: { not: null },
-          lng: { not: null },
-        },
-        orderBy: { startTime: 'asc' },
-      });
-      const uLat = Number(user.currentLat);
-      const uLng = Number(user.currentLng);
-      for (const e of candidates) {
-        const miles = this.haversineMiles(
-          uLat,
-          uLng,
-          Number(e.lat),
-          Number(e.lng),
-        );
-        if (miles <= radius) {
-          (e as any).dist_meters = miles * 1609.34;
-          rows.push(e);
-        }
+    // Buscar eventos no intervalo de tempo
+    const candidates = await this.prisma.event.findMany({
+      where: {
+        startTime: { gte: from, lte: to },
+        lat: { not: null },
+        lng: { not: null },
+      },
+      orderBy: [{ startTime: 'asc' }, { id: 'asc' }],
+    });
+
+    // Filtrar por distância usando Haversine
+    const uLat = Number(user.currentLat);
+    const uLng = Number(user.currentLng);
+    const rows: any[] = [];
+
+    for (const e of candidates) {
+      const miles = this.haversineMiles(
+        uLat,
+        uLng,
+        Number(e.lat),
+        Number(e.lng),
+      );
+      if (miles <= radius) {
+        (e as any).dist_meters = miles * 1609.34;
+        rows.push(e);
       }
     }
 
