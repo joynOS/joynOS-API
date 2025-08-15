@@ -49,7 +49,7 @@ export class AuthService {
       { sub: userId },
       {
         secret: process.env.JWT_ACCESS_SECRET || 'dev-secret',
-        expiresIn: '15m',
+        expiresIn: '24h',
       },
     );
     const refresh = await this.jwt.signAsync(
