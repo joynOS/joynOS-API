@@ -188,7 +188,7 @@ export class EventsService {
     }
 
     const connectedUserIds = await this.repo.getReviewPeers(eventId, userId);
-    
+
     return {
       eventId: review.eventId,
       userId: review.userId,
@@ -215,7 +215,11 @@ export class EventsService {
     }
 
     // Validate connected users are also members
-    const validConnectedUserIds = await this.validateConnectedUsers(eventId, dto.connectedUserIds, userId);
+    const validConnectedUserIds = await this.validateConnectedUsers(
+      eventId,
+      dto.connectedUserIds,
+      userId,
+    );
 
     // Create or update review
     const review = await this.repo.createEventReview({
@@ -233,7 +237,11 @@ export class EventsService {
     // Create or update user connections (circle management)
     let circleAdded = 0;
     for (const peerUserId of validConnectedUserIds) {
-      const wasNew = await this.createOrUpdateConnection(userId, peerUserId, eventId);
+      const wasNew = await this.createOrUpdateConnection(
+        userId,
+        peerUserId,
+        eventId,
+      );
       if (wasNew) circleAdded++;
     }
 
@@ -241,7 +249,7 @@ export class EventsService {
     if (validConnectedUserIds.length > 0) {
       await this.repo.postSystemMessage(
         eventId,
-        `${member.user?.name || 'A user'} submitted a review and connected with ${validConnectedUserIds.length} people.`
+        `${member.user?.name || 'A user'} submitted a review and connected with ${validConnectedUserIds.length} people.`,
       );
     }
 
@@ -261,29 +269,41 @@ export class EventsService {
     };
   }
 
-  private async validateConnectedUsers(eventId: string, connectedUserIds: string[], reviewerId: string): Promise<string[]> {
+  private async validateConnectedUsers(
+    eventId: string,
+    connectedUserIds: string[],
+    reviewerId: string,
+  ): Promise<string[]> {
     if (!connectedUserIds || connectedUserIds.length === 0) {
       return [];
     }
 
     // Remove self from the list
-    const filteredIds = connectedUserIds.filter(id => id !== reviewerId);
+    const filteredIds = connectedUserIds.filter((id) => id !== reviewerId);
 
     // Validate all users are members of the event
     const members = await this.repo.getEventMembers(eventId, filteredIds);
     const validMemberIds = members
-      .filter(member => ['JOINED', 'COMMITTED'].includes(member.status))
-      .map(member => member.userId);
+      .filter((member) => ['JOINED', 'COMMITTED'].includes(member.status))
+      .map((member) => member.userId);
 
     return validMemberIds;
   }
 
-  private async createOrUpdateConnection(userAId: string, userBId: string, eventId: string): Promise<boolean> {
+  private async createOrUpdateConnection(
+    userAId: string,
+    userBId: string,
+    eventId: string,
+  ): Promise<boolean> {
     // Ensure consistent ordering for undirected relationship
-    const [minUserId, maxUserId] = userAId < userBId ? [userAId, userBId] : [userBId, userAId];
+    const [minUserId, maxUserId] =
+      userAId < userBId ? [userAId, userBId] : [userBId, userAId];
 
-    const existingConnection = await this.repo.getUserConnection(minUserId, maxUserId);
-    
+    const existingConnection = await this.repo.getUserConnection(
+      minUserId,
+      maxUserId,
+    );
+
     if (existingConnection) {
       // Update lastEventAt
       await this.repo.updateConnectionLastEvent(existingConnection.id, eventId);

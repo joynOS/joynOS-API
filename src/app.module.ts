@@ -17,6 +17,7 @@ import { AIModule } from './modules/ai/ai.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ProfileModule } from './modules/profile/profile.module';
+import { AssetsModule } from './modules/assets/assets.module';
 // removed global idempotency interceptor; apply per-route
 
 @Module({
@@ -29,6 +30,7 @@ import { ProfileModule } from './modules/profile/profile.module';
     IngestionModule,
     MatchingModule,
     ProfileModule,
+    AssetsModule,
   ],
   controllers: [
     AppController,

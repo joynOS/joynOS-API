@@ -1,5 +1,11 @@
 import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ProfileService } from './profile.service';
 
@@ -18,10 +24,22 @@ export class ProfileController {
     schema: {
       type: 'object',
       properties: {
-        eventsCount: { type: 'number', description: 'Number of attended events' },
-        circleCount: { type: 'number', description: 'Number of circle connections' },
-        commitRate: { type: 'number', description: 'Commit rate percentage (0-1)' },
-        commitScore: { type: 'number', description: 'Peer-based commit score (0-1)' },
+        eventsCount: {
+          type: 'number',
+          description: 'Number of attended events',
+        },
+        circleCount: {
+          type: 'number',
+          description: 'Number of circle connections',
+        },
+        commitRate: {
+          type: 'number',
+          description: 'Commit rate percentage (0-1)',
+        },
+        commitScore: {
+          type: 'number',
+          description: 'Peer-based commit score (0-1)',
+        },
         commitBreakdown: {
           type: 'object',
           properties: {
@@ -41,8 +59,17 @@ export class ProfileController {
 
   @Get('attended')
   @ApiOperation({ summary: 'Get attended events with pagination' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Pagination cursor',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items to return',
+  })
   @ApiResponse({
     status: 200,
     description: 'Attended events retrieved successfully',
@@ -81,8 +108,17 @@ export class ProfileController {
 
   @Get('places')
   @ApiOperation({ summary: 'Get visited places with pagination' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Pagination cursor',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items to return',
+  })
   @ApiResponse({
     status: 200,
     description: 'Visited places retrieved successfully',
@@ -119,8 +155,17 @@ export class ProfileController {
 
   @Get('circle')
   @ApiOperation({ summary: 'Get circle connections with pagination' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Pagination cursor',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items to return',
+  })
   @ApiResponse({
     status: 200,
     description: 'Circle connections retrieved successfully',
@@ -154,7 +199,9 @@ export class ProfileController {
   }
 
   @Get('preferences')
-  @ApiOperation({ summary: 'Get user preferences including interests and plan preferences' })
+  @ApiOperation({
+    summary: 'Get user preferences including interests and plan preferences',
+  })
   @ApiResponse({
     status: 200,
     description: 'User preferences retrieved successfully',

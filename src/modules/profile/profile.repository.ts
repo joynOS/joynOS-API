@@ -67,32 +67,32 @@ export class ProfileRepository {
         userId,
         status: { in: ['JOINED', 'COMMITTED'] },
         bookingStatus: 'BOOKED',
-        event: { 
-          endTime: { lt: new Date() } 
+        event: {
+          endTime: { lt: new Date() },
         },
       },
-      include: { 
-        event: { 
-          select: { id: true, endTime: true } 
-        } 
+      include: {
+        event: {
+          select: { id: true, endTime: true },
+        },
       },
       orderBy: { event: { endTime: 'desc' } },
       take: 20, // Last 20 events for performance
     });
 
-    let base = 100;
+    const base = 100;
     let acknowledgedEvents = 0;
     let unratedEvents = 0;
 
     // Check peer acknowledgements for each attended event
     for (const member of attended) {
       const acknowledgements = await this.prisma.eventReviewPeer.count({
-        where: { 
-          eventId: member.eventId, 
-          peerUserId: userId 
+        where: {
+          eventId: member.eventId,
+          peerUserId: userId,
         },
       });
-      
+
       if (acknowledgements > 0) {
         acknowledgedEvents++;
       } else {
@@ -141,10 +141,7 @@ export class ProfileRepository {
           endTime: { lt: new Date() },
         },
       },
-      orderBy: [
-        { event: { startTime: 'desc' } },
-        { id: 'desc' }
-      ],
+      orderBy: [{ event: { startTime: 'desc' } }, { id: 'desc' }],
       take: limit + 1,
       ...cursorObj,
       include: {
@@ -210,11 +207,11 @@ export class ProfileRepository {
 
     // Group by venue and aggregate
     const venueMap = new Map();
-    
+
     attendedEvents.forEach((member) => {
       const event = member.event;
       const venue = event.venue;
-      
+
       if (!venueMap.has(venue)) {
         venueMap.set(venue, {
           venue,
@@ -226,21 +223,21 @@ export class ProfileRepository {
           ratings: [],
         });
       }
-      
+
       const venueData = venueMap.get(venue);
       venueData.visits++;
-      
+
       if (event.startTime && event.startTime > venueData.lastVisitedAt) {
         venueData.lastVisitedAt = event.startTime;
       }
-      
+
       if (event.reviews[0]?.placeRating) {
         venueData.ratings.push(event.reviews[0].placeRating);
       }
     });
 
     // Convert to array and sort by last visited
-    let places = Array.from(venueMap.values())
+    const places = Array.from(venueMap.values())
       .map((place) => ({
         venue: place.venue,
         address: place.address,
@@ -248,16 +245,22 @@ export class ProfileRepository {
         lng: place.lng,
         lastVisitedAt: place.lastVisitedAt,
         visits: place.visits,
-        avgPlaceRating: place.ratings.length > 0
-          ? place.ratings.reduce((sum, rating) => sum + rating, 0) / place.ratings.length
-          : null,
+        avgPlaceRating:
+          place.ratings.length > 0
+            ? place.ratings.reduce((sum, rating) => sum + rating, 0) /
+              place.ratings.length
+            : null,
       }))
-      .sort((a, b) => new Date(b.lastVisitedAt).getTime() - new Date(a.lastVisitedAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.lastVisitedAt).getTime() -
+          new Date(a.lastVisitedAt).getTime(),
+      );
 
     // Handle pagination
     let startIndex = 0;
     if (cursor) {
-      startIndex = places.findIndex(place => place.venue === cursor);
+      startIndex = places.findIndex((place) => place.venue === cursor);
       if (startIndex > -1) startIndex++;
     }
 
@@ -268,7 +271,11 @@ export class ProfileRepository {
     return { items, nextCursor };
   }
 
-  async getCircleConnections(userId: string, cursor?: string, limit: number = 20) {
+  async getCircleConnections(
+    userId: string,
+    cursor?: string,
+    limit: number = 20,
+  ) {
     const where = {
       OR: [{ userAId: userId }, { userBId: userId }],
       status: 'ACTIVE' as const,
@@ -313,7 +320,8 @@ export class ProfileRepository {
     // Return the other user (not the current user)
     return {
       items: items.map((connection) => {
-        const otherUser = connection.userAId === userId ? connection.userB : connection.userA;
+        const otherUser =
+          connection.userAId === userId ? connection.userB : connection.userA;
         return {
           userId: otherUser.id,
           name: otherUser.name,

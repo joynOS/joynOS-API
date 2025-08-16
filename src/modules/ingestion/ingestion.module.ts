@@ -1,10 +1,25 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { IngestionService } from './ingestion.service';
 import { AIModule } from '../ai/ai.module';
+import { AssetsModule } from '../assets/assets.module';
+import { RegionIngestionService } from './services/region-ingestion.service';
+import { GooglePlacesService } from './services/google-places.service';
+import { VibeMappingService } from './services/vibe-mapping.service';
 
 @Module({
-  imports: [AIModule],
-  providers: [IngestionService],
-  exports: [IngestionService],
+  imports: [ConfigModule, AIModule, AssetsModule],
+  providers: [
+    IngestionService,
+    RegionIngestionService,
+    GooglePlacesService,
+    VibeMappingService,
+  ],
+  exports: [
+    IngestionService,
+    RegionIngestionService,
+    GooglePlacesService,
+    VibeMappingService,
+  ],
 })
 export class IngestionModule {}

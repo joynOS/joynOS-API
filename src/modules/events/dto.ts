@@ -84,40 +84,40 @@ export class PaginationQueryDto {
 }
 
 export class CreateReviewDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Rating for the place (1-5)',
     minimum: 1,
     maximum: 5,
-    type: 'integer'
+    type: 'integer',
   })
   @IsNumber()
   @Min(1)
   @Max(5)
   placeRating: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Rating for the plan (1-5)',
     minimum: 1,
     maximum: 5,
-    type: 'integer'
+    type: 'integer',
   })
   @IsNumber()
   @Min(1)
   @Max(5)
   planRating: number;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Optional comment about the experience',
-    type: 'string'
+    type: 'string',
   })
   @IsOptional()
   @IsString()
   comment?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Array of user IDs that the reviewer connected with',
     type: [String],
-    default: []
+    default: [],
   })
   @IsArray()
   @IsString({ each: true })

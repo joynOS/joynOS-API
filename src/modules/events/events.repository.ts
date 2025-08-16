@@ -51,6 +51,13 @@ export class EventsRepository {
         lng: true,
         rating: true,
         embedding: true,
+        // Region fields
+        regionProvider: true,
+        regionPlaceId: true,
+        regionName: true,
+        gallery: true,
+        vibeKey: true,
+        searchRadiusM: true,
       },
     });
   }
@@ -82,6 +89,13 @@ export class EventsRepository {
         lng: true,
         rating: true,
         embedding: true,
+        // Region fields
+        regionProvider: true,
+        regionPlaceId: true,
+        regionName: true,
+        gallery: true,
+        vibeKey: true,
+        searchRadiusM: true,
       },
     });
   }
@@ -108,7 +122,34 @@ export class EventsRepository {
   }
 
   async listPlans(eventId: string) {
-    return this.prisma.plan.findMany({ where: { eventId } });
+    return this.prisma.plan.findMany({
+      where: { eventId },
+      select: {
+        id: true,
+        eventId: true,
+        title: true,
+        description: true,
+        emoji: true,
+        votes: true,
+        isSelected: true,
+        createdAt: true,
+        updatedAt: true,
+        // Venue fields
+        placeProvider: true,
+        placeId: true,
+        venue: true,
+        address: true,
+        lat: true,
+        lng: true,
+        rating: true,
+        priceLevel: true,
+        photoUrl: true,
+        externalBookingUrl: true,
+        mapUrl: true,
+        tags: true,
+        aiNotes: true,
+      },
+    });
   }
 
   async browseEvents(params: {
@@ -154,6 +195,13 @@ export class EventsRepository {
         lng: true,
         rating: true,
         embedding: true,
+        // Region fields
+        regionProvider: true,
+        regionPlaceId: true,
+        regionName: true,
+        gallery: true,
+        vibeKey: true,
+        searchRadiusM: true,
       },
     });
   }
@@ -190,6 +238,13 @@ export class EventsRepository {
             lng: true,
             rating: true,
             embedding: true,
+            // Region fields
+            regionProvider: true,
+            regionPlaceId: true,
+            regionName: true,
+            gallery: true,
+            vibeKey: true,
+            searchRadiusM: true,
           },
         },
       },

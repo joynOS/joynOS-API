@@ -10,12 +10,13 @@ export class ProfileService {
   ) {}
 
   async getSummary(userId: string) {
-    const [eventsCount, circleCount, commitRate, commitScoreData] = await Promise.all([
-      this.profileRepo.getAttendedEventsCount(userId),
-      this.profileRepo.getCircleConnectionsCount(userId),
-      this.profileRepo.getCommitRate(userId),
-      this.profileRepo.getCommitScore(userId),
-    ]);
+    const [eventsCount, circleCount, commitRate, commitScoreData] =
+      await Promise.all([
+        this.profileRepo.getAttendedEventsCount(userId),
+        this.profileRepo.getCircleConnectionsCount(userId),
+        this.profileRepo.getCommitRate(userId),
+        this.profileRepo.getCommitScore(userId),
+      ]);
 
     return {
       eventsCount,
@@ -35,22 +36,27 @@ export class ProfileService {
   }
 
   async getCircle(userId: string, cursor?: string, limit: number = 20) {
-    const result = await this.profileRepo.getCircleConnections(userId, cursor, limit);
-    
+    const result = await this.profileRepo.getCircleConnections(
+      userId,
+      cursor,
+      limit,
+    );
+
     // Calculate match percentages for each connection
     const currentUser = await this.profileRepo.getUserProfile(userId);
-    
+
     const itemsWithMatchPercent = await Promise.all(
       result.items.map(async (item) => {
         let matchPercent = 50; // default fallback
-        
+
         try {
           // Use existing matching service to calculate vibe score
           if (currentUser?.embedding && item.connection) {
-            const otherUser = item.connection.userAId === userId 
-              ? item.connection.userB 
-              : item.connection.userA;
-            
+            const otherUser =
+              item.connection.userAId === userId
+                ? item.connection.userB
+                : item.connection.userA;
+
             if (otherUser.embedding) {
               // This would use your existing vibe score calculation
               // For now, we'll use a simplified version
@@ -68,7 +74,7 @@ export class ProfileService {
           tagline: item.tagline,
           matchPercent,
         };
-      })
+      }),
     );
 
     return {
@@ -90,7 +96,10 @@ export class ProfileService {
     }));
 
     // Plan preferences based on AI profile or simple mapping
-    const planPreferences = this.derivePlanPreferences(userProfile?.aiProfile, interests);
+    const planPreferences = this.derivePlanPreferences(
+      userProfile?.aiProfile,
+      interests,
+    );
 
     return {
       interests,
@@ -101,66 +110,87 @@ export class ProfileService {
   private derivePlanPreferences(aiProfile: any, interests: any[]) {
     // Simple mapping for MVP - can be enhanced with AI profile analysis
     const allPreferences = [
-      { 
-        key: 'cultural', 
-        title: 'Cultural', 
+      {
+        key: 'cultural',
+        title: 'Cultural',
         subtitle: 'Art galleries, museums',
-        matchLabel: 'High Match' 
+        matchLabel: 'High Match',
       },
-      { 
-        key: 'intimate', 
-        title: 'Intimate', 
+      {
+        key: 'intimate',
+        title: 'Intimate',
         subtitle: 'Small groups',
-        matchLabel: 'Perfect Match' 
+        matchLabel: 'Perfect Match',
       },
-      { 
-        key: 'creative', 
-        title: 'Creative', 
+      {
+        key: 'creative',
+        title: 'Creative',
         subtitle: 'Musical, artistic',
-        matchLabel: 'Great Match' 
+        matchLabel: 'Great Match',
       },
-      { 
-        key: 'morning', 
-        title: 'Morning', 
+      {
+        key: 'morning',
+        title: 'Morning',
         subtitle: 'Yoga, hiking',
-        matchLabel: 'Perfect Match' 
+        matchLabel: 'Perfect Match',
       },
-      { 
-        key: 'social', 
-        title: 'Social', 
+      {
+        key: 'social',
+        title: 'Social',
         subtitle: 'Large groups, networking',
-        matchLabel: 'Good Match' 
+        matchLabel: 'Good Match',
       },
-      { 
-        key: 'nightlife', 
-        title: 'Nightlife', 
+      {
+        key: 'nightlife',
+        title: 'Nightlife',
         subtitle: 'Bars, clubs, late night',
-        matchLabel: 'Great Match' 
+        matchLabel: 'Great Match',
       },
     ];
 
     // Enhanced matching based on interests
-    const interestLabels = interests.map(i => i.label.toLowerCase());
-    
-    return allPreferences.map(pref => {
+    const interestLabels = interests.map((i) => i.label.toLowerCase());
+
+    return allPreferences.map((pref) => {
       let matchLabel = pref.matchLabel;
-      
+
       // Improve match labels based on user interests
-      if (pref.key === 'cultural' && interestLabels.some(label => 
-        label.includes('art') || label.includes('museum') || label.includes('gallery'))) {
+      if (
+        pref.key === 'cultural' &&
+        interestLabels.some(
+          (label) =>
+            label.includes('art') ||
+            label.includes('museum') ||
+            label.includes('gallery'),
+        )
+      ) {
         matchLabel = 'Perfect Match';
       }
-      
-      if (pref.key === 'creative' && interestLabels.some(label => 
-        label.includes('music') || label.includes('art') || label.includes('creative'))) {
+
+      if (
+        pref.key === 'creative' &&
+        interestLabels.some(
+          (label) =>
+            label.includes('music') ||
+            label.includes('art') ||
+            label.includes('creative'),
+        )
+      ) {
         matchLabel = 'Perfect Match';
       }
-      
-      if (pref.key === 'morning' && interestLabels.some(label => 
-        label.includes('yoga') || label.includes('hiking') || label.includes('fitness'))) {
+
+      if (
+        pref.key === 'morning' &&
+        interestLabels.some(
+          (label) =>
+            label.includes('yoga') ||
+            label.includes('hiking') ||
+            label.includes('fitness'),
+        )
+      ) {
         matchLabel = 'Perfect Match';
       }
-      
+
       return { ...pref, matchLabel };
     });
   }

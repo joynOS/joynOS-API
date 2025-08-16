@@ -35,6 +35,13 @@ export class MatchingService {
         lng: true,
         rating: true,
         embedding: true,
+        // Region fields
+        regionProvider: true,
+        regionPlaceId: true,
+        regionName: true,
+        gallery: true,
+        vibeKey: true,
+        searchRadiusM: true,
       },
     });
   }
@@ -203,6 +210,13 @@ export class MatchingService {
         interestedCount: members.length,
         participants: first5Participants,
         etaSeconds: eta,
+        // Region fields
+        regionProvider: e.regionProvider,
+        regionPlaceId: e.regionPlaceId,
+        regionName: e.regionName,
+        gallery: e.gallery,
+        vibeKey: e.vibeKey,
+        searchRadiusM: e.searchRadiusM,
       });
     }
 

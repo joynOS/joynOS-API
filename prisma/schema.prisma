@@ -39,6 +39,17 @@ enum ConnectionStatus {
   BLOCKED
 }
 
+enum VibeKey {
+  RELAXED
+  DATE_NIGHT
+  PARTY
+  ARTSY
+  MORNING
+  CHILL
+  SOCIAL
+  CULTURAL
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -176,6 +187,15 @@ model Event {
   aiNormalized       Json?
   embedding          Bytes?
   tags               String[]
+  
+  // REGION FIELDS (new)
+  regionProvider     String?     @default("google") // "google" | "fsq" | "yelp"
+  regionPlaceId      String?     // Google place_id (or fsq_id / yelp biz id)
+  regionName         String?     // e.g., "SoHo", "Praia de Cabo Branco"
+  gallery            String[]    @default([]) // array of image URLs (proxied)
+  vibeKey            VibeKey?
+  searchRadiusM      Int?        // e.g., 600..1200m used to find venues
+  
   plans              Plan[]
   members            Member[]
   messages           EventMessage[]
@@ -187,7 +207,10 @@ model Event {
   @@index([startTime])
   @@index([lat, lng])
   @@index([votingState])
+  @@index([regionProvider, regionPlaceId])
+  @@index([vibeKey])
   @@unique([source, sourceId])
+  @@unique([regionProvider, regionPlaceId, vibeKey, startTime])
 }
 
 model Plan {
@@ -198,10 +221,28 @@ model Plan {
   emoji       String?
   votes       Int     @default(0)
   isSelected  Boolean @default(false)
+  
+  // VENUE FIELDS (new)
+  placeProvider        String?     @default("google")
+  placeId              String?     // e.g., Google place_id
+  venue                String?     // plan-level venue name (distinct from Event.regionName)
+  address              String?
+  lat                  Decimal?    @db.Decimal(9, 6)
+  lng                  Decimal?    @db.Decimal(9, 6)
+  rating               Decimal?    @db.Decimal(2,1)
+  priceLevel           Int?        // 0..4 (Google), or -1 if unknown
+  photoUrl             String?
+  externalBookingUrl   String?     // deep link (opentable/resy/7rooms or maps place link)
+  mapUrl               String?     // https://www.google.com/maps/place/?q=place_id:<ID>
+  tags                 String[]    @default([])
+  aiNotes              Json?       // optional AI notes
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   event       Event   @relation(fields: [eventId], references: [id])
   votesRel    PlanVote[]
+  
+  @@index([placeProvider, placeId])
 }
 
 model PlanVote {

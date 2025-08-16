@@ -6,10 +6,7 @@ import { ProfileRepository } from './profile.repository';
 import { MatchingModule } from '../matching/matching.module';
 
 @Module({
-  imports: [
-    MatchingModule,
-    JwtModule.register({}),
-  ],
+  imports: [MatchingModule, JwtModule.register({})],
   controllers: [ProfileController],
   providers: [ProfileService, ProfileRepository],
   exports: [ProfileService, ProfileRepository],
