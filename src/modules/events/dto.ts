@@ -82,3 +82,44 @@ export class PaginationQueryDto {
   @Max(100)
   limit?: number;
 }
+
+export class CreateReviewDto {
+  @ApiProperty({ 
+    description: 'Rating for the place (1-5)',
+    minimum: 1,
+    maximum: 5,
+    type: 'integer'
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  placeRating: number;
+
+  @ApiProperty({ 
+    description: 'Rating for the plan (1-5)',
+    minimum: 1,
+    maximum: 5,
+    type: 'integer'
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  planRating: number;
+
+  @ApiPropertyOptional({ 
+    description: 'Optional comment about the experience',
+    type: 'string'
+  })
+  @IsOptional()
+  @IsString()
+  comment?: string;
+
+  @ApiProperty({ 
+    description: 'Array of user IDs that the reviewer connected with',
+    type: [String],
+    default: []
+  })
+  @IsArray()
+  @IsString({ each: true })
+  connectedUserIds: string[];
+}

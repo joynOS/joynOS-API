@@ -34,6 +34,11 @@ enum MessageKind {
   BOOKING
 }
 
+enum ConnectionStatus {
+  ACTIVE
+  BLOCKED
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -52,6 +57,11 @@ model User {
   quizResults   UserQuizResult[]
   planVotes     PlanVote[]
   messages      EventMessage[]
+  reviews       EventReview[]
+  reviewPeersAsReviewer EventReviewPeer[] @relation("Reviewer")
+  reviewPeersAsPeer     EventReviewPeer[] @relation("Peer")
+  connectionsA  UserConnection[] @relation("ConnA")
+  connectionsB  UserConnection[] @relation("ConnB")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -170,6 +180,8 @@ model Event {
   members            Member[]
   messages           EventMessage[]
   interests          EventInterest[]
+  reviews            EventReview[]
+  reviewPeers        EventReviewPeer[]
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   @@index([startTime])
@@ -251,4 +263,54 @@ model IdempotencyKey {
   statusCode    Int
   responseHash  String
   createdAt     DateTime @default(now())
+}
+
+model EventReview {
+  id           String   @id @default(uuid())
+  eventId      String
+  userId       String
+  // ratings are 1..5
+  placeRating  Int
+  planRating   Int
+  planId       String?  // winner plan at review time (optional but useful)
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId]) // one review per user/event
+  @@index([eventId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model EventReviewPeer {
+  // who I connected with in this event review
+  eventId       String
+  reviewerId    String
+  peerUserId    String
+  createdAt     DateTime @default(now())
+
+  event         Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reviewer      User    @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  peer          User    @relation("Peer", fields: [peerUserId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, reviewerId, peerUserId])
+  @@index([peerUserId])
+}
+
+model UserConnection {
+  // undirected relation: store the ordered pair (minUserId, maxUserId)
+  id           String   @id @default(uuid())
+  userAId      String
+  userBId      String
+  status       ConnectionStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  lastEventAt  DateTime?
+
+  userA        User     @relation("ConnA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB        User     @relation("ConnB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([createdAt])
 }

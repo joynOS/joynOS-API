@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AIModule } from './modules/ai/ai.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { MatchingModule } from './modules/matching/matching.module';
+import { ProfileModule } from './modules/profile/profile.module';
 // removed global idempotency interceptor; apply per-route
 
 @Module({
@@ -27,6 +28,7 @@ import { MatchingModule } from './modules/matching/matching.module';
     AIModule,
     IngestionModule,
     MatchingModule,
+    ProfileModule,
   ],
   controllers: [
     AppController,

@@ -349,4 +349,140 @@ export class EventsRepository {
       data: { eventId, userId, kind: 'CHAT' as any, text },
     });
   }
+
+  async postSystemMessage(eventId: string, text: string) {
+    return this.prisma.eventMessage.create({
+      data: { eventId, userId: null, kind: 'SYSTEM' as any, text },
+    });
+  }
+
+  async getEventReview(eventId: string, userId: string) {
+    return this.prisma.eventReview.findUnique({
+      where: {
+        eventId_userId: { eventId, userId },
+      },
+    });
+  }
+
+  async createEventReview(data: {
+    eventId: string;
+    userId: string;
+    placeRating: number;
+    planRating: number;
+    planId?: string;
+    comment?: string;
+  }) {
+    return this.prisma.eventReview.upsert({
+      where: {
+        eventId_userId: { eventId: data.eventId, userId: data.userId },
+      },
+      update: {
+        placeRating: data.placeRating,
+        planRating: data.planRating,
+        planId: data.planId,
+        comment: data.comment,
+      },
+      create: data,
+    });
+  }
+
+  async getReviewPeers(eventId: string, reviewerId: string): Promise<string[]> {
+    const peers = await this.prisma.eventReviewPeer.findMany({
+      where: { eventId, reviewerId },
+      select: { peerUserId: true },
+    });
+    return peers.map((p) => p.peerUserId);
+  }
+
+  async createReviewPeers(
+    eventId: string,
+    reviewerId: string,
+    peerUserIds: string[],
+  ) {
+    // Delete existing peers first
+    await this.prisma.eventReviewPeer.deleteMany({
+      where: { eventId, reviewerId },
+    });
+
+    // Create new peer connections
+    if (peerUserIds.length > 0) {
+      await this.prisma.eventReviewPeer.createMany({
+        data: peerUserIds.map((peerUserId) => ({
+          eventId,
+          reviewerId,
+          peerUserId,
+        })),
+      });
+    }
+  }
+
+  async getEventMembers(eventId: string, userIds?: string[]) {
+    const where: any = { eventId };
+    if (userIds && userIds.length > 0) {
+      where.userId = { in: userIds };
+    }
+
+    return this.prisma.member.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getMember(eventId: string, userId: string) {
+    return this.prisma.member.findUnique({
+      where: {
+        eventId_userId: { eventId, userId },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getEvent(eventId: string) {
+    return this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
+  }
+
+  // Connection-related methods
+  async getUserConnection(userAId: string, userBId: string) {
+    return this.prisma.userConnection.findUnique({
+      where: {
+        userAId_userBId: { userAId, userBId },
+      },
+    });
+  }
+
+  async createUserConnection(data: {
+    userAId: string;
+    userBId: string;
+    status: 'ACTIVE' | 'BLOCKED';
+    lastEventAt?: Date;
+  }) {
+    return this.prisma.userConnection.create({
+      data,
+    });
+  }
+
+  async updateConnectionLastEvent(connectionId: string, eventId: string) {
+    return this.prisma.userConnection.update({
+      where: { id: connectionId },
+      data: { lastEventAt: new Date() },
+    });
+  }
 }

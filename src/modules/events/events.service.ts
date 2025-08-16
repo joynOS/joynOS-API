@@ -9,6 +9,7 @@ import { MatchingService } from '../matching/matching.service';
 import { VotingQueueService } from '../queue/queue.module';
 import { calculateVibeScores } from '../matching/utils/vibe';
 import { PrismaService } from '../../database/prisma.service';
+import { CreateReviewDto } from './dto';
 
 @Injectable()
 export class EventsService {
@@ -178,6 +179,125 @@ export class EventsService {
 
   async createMessage(eventId: string, userId: string, text: string) {
     return this.repo.postMessage(eventId, userId, text);
+  }
+
+  async getReview(eventId: string, userId: string) {
+    const review = await this.repo.getEventReview(eventId, userId);
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    const connectedUserIds = await this.repo.getReviewPeers(eventId, userId);
+    
+    return {
+      eventId: review.eventId,
+      userId: review.userId,
+      placeRating: review.placeRating,
+      planRating: review.planRating,
+      planId: review.planId,
+      comment: review.comment,
+      connectedUserIds,
+      createdAt: review.createdAt,
+    };
+  }
+
+  async createReview(eventId: string, userId: string, dto: CreateReviewDto) {
+    // Validate user is member of the event
+    const member = await this.repo.getMember(eventId, userId);
+    if (!member || !['JOINED', 'COMMITTED'].includes(member.status)) {
+      throw new BadRequestException('Must be a member of the event to review');
+    }
+
+    // Validate event has ended
+    const event = await this.repo.getEvent(eventId);
+    if (!event || !event.endTime || event.endTime > new Date()) {
+      throw new BadRequestException('Event must have ended to submit a review');
+    }
+
+    // Validate connected users are also members
+    const validConnectedUserIds = await this.validateConnectedUsers(eventId, dto.connectedUserIds, userId);
+
+    // Create or update review
+    const review = await this.repo.createEventReview({
+      eventId,
+      userId,
+      placeRating: dto.placeRating,
+      planRating: dto.planRating,
+      planId: event.selectedPlanId || undefined,
+      comment: dto.comment,
+    });
+
+    // Create review peer connections
+    await this.repo.createReviewPeers(eventId, userId, validConnectedUserIds);
+
+    // Create or update user connections (circle management)
+    let circleAdded = 0;
+    for (const peerUserId of validConnectedUserIds) {
+      const wasNew = await this.createOrUpdateConnection(userId, peerUserId, eventId);
+      if (wasNew) circleAdded++;
+    }
+
+    // Optional: Post system message to chat
+    if (validConnectedUserIds.length > 0) {
+      await this.repo.postSystemMessage(
+        eventId,
+        `${member.user?.name || 'A user'} submitted a review and connected with ${validConnectedUserIds.length} people.`
+      );
+    }
+
+    return {
+      ok: true,
+      review: {
+        eventId: review.eventId,
+        userId: review.userId,
+        placeRating: review.placeRating,
+        planRating: review.planRating,
+        planId: review.planId,
+        comment: review.comment,
+        connectedUserIds: validConnectedUserIds,
+        createdAt: review.createdAt,
+      },
+      circleAdded,
+    };
+  }
+
+  private async validateConnectedUsers(eventId: string, connectedUserIds: string[], reviewerId: string): Promise<string[]> {
+    if (!connectedUserIds || connectedUserIds.length === 0) {
+      return [];
+    }
+
+    // Remove self from the list
+    const filteredIds = connectedUserIds.filter(id => id !== reviewerId);
+
+    // Validate all users are members of the event
+    const members = await this.repo.getEventMembers(eventId, filteredIds);
+    const validMemberIds = members
+      .filter(member => ['JOINED', 'COMMITTED'].includes(member.status))
+      .map(member => member.userId);
+
+    return validMemberIds;
+  }
+
+  private async createOrUpdateConnection(userAId: string, userBId: string, eventId: string): Promise<boolean> {
+    // Ensure consistent ordering for undirected relationship
+    const [minUserId, maxUserId] = userAId < userBId ? [userAId, userBId] : [userBId, userAId];
+
+    const existingConnection = await this.repo.getUserConnection(minUserId, maxUserId);
+    
+    if (existingConnection) {
+      // Update lastEventAt
+      await this.repo.updateConnectionLastEvent(existingConnection.id, eventId);
+      return false; // Not new
+    } else {
+      // Create new connection
+      await this.repo.createUserConnection({
+        userAId: minUserId,
+        userBId: maxUserId,
+        status: 'ACTIVE',
+        lastEventAt: new Date(),
+      });
+      return true; // New connection
+    }
   }
 
   private async calculateVibeScoresForEvent(event: any, userId: string) {

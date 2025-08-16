@@ -26,6 +26,7 @@ import {
   CreateMessageDto,
   EventIdParamDto,
   RecommendationsQueryDto,
+  CreateReviewDto,
 } from './dto';
 
 @ApiTags('Events')
@@ -179,5 +180,68 @@ export class EventsController {
     @Req() req: any,
   ) {
     return this.service.createMessage(params.id, req.user.userId, dto.text);
+  }
+
+  @Get(':id/review')
+  @ApiOperation({ summary: 'Get my review for this event' })
+  @ApiResponse({
+    status: 200,
+    description: 'Review retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string' },
+        userId: { type: 'string' },
+        placeRating: { type: 'number' },
+        planRating: { type: 'number' },
+        planId: { type: 'string', nullable: true },
+        comment: { type: 'string', nullable: true },
+        connectedUserIds: { type: 'array', items: { type: 'string' } },
+        createdAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Review not found' })
+  async getReview(@Param() params: EventIdParamDto, @Req() req: any) {
+    return await this.service.getReview(params.id, req.user.userId);
+  }
+
+  @Post(':id/review')
+  @ApiOperation({ summary: 'Submit event review' })
+  @ApiResponse({
+    status: 201,
+    description: 'Review created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        review: {
+          type: 'object',
+          properties: {
+            eventId: { type: 'string' },
+            userId: { type: 'string' },
+            placeRating: { type: 'number' },
+            planRating: { type: 'number' },
+            planId: { type: 'string', nullable: true },
+            comment: { type: 'string', nullable: true },
+            connectedUserIds: { type: 'array', items: { type: 'string' } },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        circleAdded: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - event not ended or invalid data',
+  })
+  @UseInterceptors(IdempotencyInterceptor)
+  async createReview(
+    @Param() params: EventIdParamDto,
+    @Body() dto: CreateReviewDto,
+    @Req() req: any,
+  ) {
+    return await this.service.createReview(params.id, req.user.userId, dto);
   }
 }
