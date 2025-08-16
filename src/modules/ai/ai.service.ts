@@ -54,6 +54,49 @@ export class AIService {
     return this.parseJson(out.response.text());
   }
 
+  async analyzeEventVibe(input: {
+    regionName: string;
+    venues: Array<{
+      name: string;
+      address: string;
+      types: string[];
+      tags: string[];
+      rating?: number;
+      priceLevel?: number;
+    }>;
+  }): Promise<{
+    vibeKey: string;
+    vibeAnalysis: string;
+    mappedInterests: { id: string; weight: number }[];
+  }> {
+    const venueList = input.venues
+      .map(
+        (v) =>
+          `${v.name} (${v.address}) - Types: ${v.types.join(', ')} - Tags: ${v.tags.join(', ')} - Rating: ${v.rating || 'N/A'}`,
+      )
+      .join('\n');
+
+    const prompt = `Analyze this region and its venues to determine the vibe and interests.
+
+REGION: ${input.regionName}
+VENUES:
+${venueList}
+
+Return strictly JSON:
+{
+  "vibeKey": "RELAXED|DATE_NIGHT|PARTY|ARTSY|MORNING|CHILL|SOCIAL|CULTURAL",
+  "vibeAnalysis": "2-3 sentence description of the area's atmosphere and what kind of experience people can expect",
+  "mappedInterests": [{"id": "slug", "weight": 1-5}]
+}
+
+Available interest slugs: ["jazz-music","live-music","theater","art-galleries","wine-tasting","food-tours","museums","gaming","karaoke","games","running","hiking","photography","meditation","travel","comedy-shows","beach-days","cooking","gardening"]
+
+Base the vibeKey on the actual venue types and atmosphere. Base mappedInterests on what activities are most supported by these venues.`;
+
+    const out = await this.modelText.generateContent(prompt);
+    return this.parseJson(out.response.text());
+  }
+
   async buildTwoPlans(input: {
     title: string;
     venue?: string;

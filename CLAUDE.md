@@ -14,6 +14,7 @@ This is a NestJS API for JoynOS, an event-based social platform. The architectur
 - **Database**: PostgreSQL with Prisma ORM, Redis for queuing
 
 Key architectural patterns:
+
 - Controllers handle HTTP requests with Swagger documentation
 - Services contain business logic
 - Repositories handle data access
@@ -24,6 +25,7 @@ Key architectural patterns:
 ## Development Commands
 
 ### Core Development
+
 - `npm run start:dev` - Start in watch mode
 - `npm run build` - Build the application
 - `npm run lint` - Run ESLint with auto-fix
@@ -31,24 +33,28 @@ Key architectural patterns:
 - `npm run format:check` - Check formatting without fixing
 
 ### Testing
+
 - `npm run test` - Run unit tests
 - `npm run test:watch` - Run tests in watch mode
 - `npm run test:cov` - Run tests with coverage
 - `npm run test:e2e` - Run end-to-end tests
 
 ### Database
+
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:migrate` - Deploy migrations
 - `npm run prisma:push` - Push schema to database
 - `npm run prisma:studio` - Open Prisma Studio
 
 ### Docker
+
 - `npm run dev:up` - Start development environment with Docker Compose
 - `npm run dev:down` - Stop development environment
 - `npm run build:dev` - Build development Docker image
 - `npm run build:prod` - Build production Docker image
 
 ### CLI Tasks
+
 - `npm run cli` - Run CLI commands (see src/cli/runner.ts)
 - `npm run ingest:nyc` - Ingest NYC events data
 - `npm run events:ai:build-plans` - Generate AI plans for events
@@ -56,6 +62,7 @@ Key architectural patterns:
 ## Database Schema
 
 The system uses PostgreSQL with these key entities:
+
 - **User**: Profiles with interests, location, AI embeddings
 - **Event**: Events with plans, members, voting, and AI metadata
 - **Interest**: Categorization system with user/event associations
@@ -66,6 +73,7 @@ The system uses PostgreSQL with these key entities:
 ## Environment Setup
 
 Development environment uses Docker Compose with:
+
 - PostgreSQL on port 5434
 - Redis on port 6379
 - Yarn as package manager

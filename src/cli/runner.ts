@@ -70,7 +70,7 @@ async function main() {
       case 'events:clear': {
         const prisma = app.get(PrismaService);
         console.log('🗑️ Clearing all events and related data...');
-        
+
         await prisma.planVote.deleteMany();
         await prisma.plan.deleteMany();
         await prisma.eventMessage.deleteMany();
@@ -79,14 +79,14 @@ async function main() {
         await prisma.eventInterest.deleteMany();
         await prisma.member.deleteMany();
         await prisma.event.deleteMany();
-        
+
         console.log('✅ All events cleared');
         break;
       }
       case 'ingest:regions': {
         const regionIngestion = app.get(RegionIngestionService);
         let maxEvents = 5;
-        
+
         for (let i = 0; i < argv.length; i++) {
           const a = argv[i];
           if (a?.startsWith('--max=')) {
@@ -100,9 +100,9 @@ async function main() {
             if (!Number.isNaN(val)) maxEvents = val;
           }
         }
-        
+
         console.log(`🌆 Creating ${maxEvents} region-based events...`);
-        
+
         const regions = [
           { name: 'SoHo, New York', vibeKey: 'RELAXED' },
           { name: 'Williamsburg, Brooklyn', vibeKey: 'ARTSY' },
@@ -113,22 +113,22 @@ async function main() {
           { name: 'Tribeca, New York', vibeKey: 'CHILL' },
           { name: 'Upper West Side, New York', vibeKey: 'MORNING' },
         ];
-        
+
         let created = 0;
         let failed = 0;
-        
+
         for (let i = 0; i < Math.min(maxEvents, regions.length); i++) {
           const region = regions[i];
           try {
             console.log(`📍 Creating: ${region.name} - ${region.vibeKey}`);
-            
+
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             tomorrow.setHours(19 + i, 0, 0, 0);
-            
+
             const endTime = new Date(tomorrow);
             endTime.setHours(endTime.getHours() + 3);
-            
+
             const event = await regionIngestion.generateRegionEvent({
               region: { name: region.name },
               vibeKey: region.vibeKey as any,
@@ -136,23 +136,24 @@ async function main() {
               startTime: tomorrow,
               endTime: endTime,
             });
-            
+
             console.log(`✅ Created: ${event.title} (${event.id})`);
             console.log(`   📋 Plans: ${event.plans?.length || 0}`);
             if (event.plans?.length > 0) {
               event.plans.forEach((plan: any, idx: number) => {
-                console.log(`      ${idx + 1}. ${plan.venue} (${plan.rating}⭐)`);
+                console.log(
+                  `      ${idx + 1}. ${plan.venue} (${plan.rating}⭐)`,
+                );
               });
             }
             console.log('');
             created++;
-            
           } catch (error) {
             console.error(`❌ Failed ${region.name}:`, error.message);
             failed++;
           }
         }
-        
+
         console.log(`\n🎯 Summary: ${created} created, ${failed} failed`);
         break;
       }

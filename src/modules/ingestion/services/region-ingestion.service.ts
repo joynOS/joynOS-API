@@ -34,16 +34,15 @@ export class RegionIngestionService {
       // 2. Build region photo gallery
       const gallery = this.buildRegionGallery(regionPlace.photos || []);
 
-      // 3. Find venue candidates
-      const vibeMapping = this.vibeMapping.getVibeMapping(input.vibeKey as any);
+      // 3. Find venue candidates using broader search (no static vibe mapping)
       const searchRadius = input.searchRadiusM || 800;
 
       const venueCandidates = await this.googlePlaces.findNearbyVenues(
         regionPlace.geometry.location.lat,
         regionPlace.geometry.location.lng,
         searchRadius,
-        vibeMapping.types,
-        vibeMapping.keywords,
+        ['restaurant', 'bar', 'cafe', 'tourist_attraction', 'art_gallery'], // Broader initial search
+        [], // No keywords - let AI decide based on actual venues found
         input.startTime,
       );
 
@@ -56,8 +55,8 @@ export class RegionIngestionService {
           regionPlace.geometry.location.lat,
           regionPlace.geometry.location.lng,
           searchRadius + 200,
-          vibeMapping.types,
-          vibeMapping.keywords,
+          ['restaurant', 'bar', 'cafe', 'tourist_attraction', 'art_gallery'],
+          [],
           input.startTime,
         );
 
@@ -75,23 +74,34 @@ export class RegionIngestionService {
         topTwoVenues.map((venue) => this.googlePlaces.enrichVenue(venue)),
       );
 
-      // 5. Generate AI plan content
+      // 5. Use AI to analyze vibe based on actual venues found
+      const aiVibeAnalysis = await this.aiService.analyzeEventVibe({
+        regionName: regionPlace.name,
+        venues: topTwoVenues.map((v) => ({
+          name: v.name,
+          address: (v as any).vicinity || '',
+          types: v.types || [],
+          tags: [],
+          rating: v.rating,
+          priceLevel: v.priceLevel,
+        })),
+      });
+
+      // 6. Generate AI plan content with determined vibe
       const aiPlans = await this.generateAIPlanContent(
         regionPlace.name,
-        input.vibeKey,
+        aiVibeAnalysis.vibeKey,
         enrichedVenues,
       );
 
-      // 6. Normalize event and create embeddings
-      const eventData = await this.normalizeEventData(
-        regionPlace,
-        input.vibeKey,
-        enrichedVenues,
-      );
+      // 7. Generate embedding based on AI analysis
+      const embeddingText = `${regionPlace.name} – ${aiVibeAnalysis.vibeKey}\n${aiVibeAnalysis.vibeAnalysis}\n${topTwoVenues.map((v) => v.name).join('\n')}`;
+      const embedding = await this.aiService.embed(embeddingText);
 
-      // 7. Create event and plans
+      // 8. Create event and plans
       const event = await this.createEventWithPlans(
-        eventData,
+        aiVibeAnalysis,
+        embedding,
         gallery,
         aiPlans,
         enrichedVenues,
@@ -170,57 +180,18 @@ export class RegionIngestionService {
     return emojiMap[vibeKey] || '✨';
   }
 
-  private async normalizeEventData(
-    regionPlace: any,
-    vibeKey: string,
-    venues: Array<VenueCandidate>,
-  ) {
-    const eventDescription = `${regionPlace.name} — ${this.vibeMapping.prettyVibeName(vibeKey as any)}`;
-    const venueTypes = [...new Set(venues.flatMap((v) => v.types))];
-
-    try {
-      const normalized = await this.aiService.normalizeEvent({
-        title: eventDescription,
-        description: this.vibeMapping.getVibeDescription(vibeKey as any),
-        venue: regionPlace.name,
-        tags: venueTypes,
-      });
-
-      // Generate embedding
-      const embeddingText = `${regionPlace.name} – ${vibeKey}\n${venues.map((v) => v.name).join('\n')}\n${venueTypes.join(' ')}`;
-      const embedding = await this.aiService.embed(embeddingText);
-
-      return {
-        normalized,
-        embedding,
-        embeddingText,
-      };
-    } catch (error) {
-      this.logger.warn(
-        `AI normalization failed, using fallback:`,
-        error.message,
-      );
-      return {
-        normalized: {
-          categories: venueTypes,
-          tags: [vibeKey],
-          mappedInterests: [],
-        },
-        embedding: null,
-        embeddingText: '',
-      };
-    }
-  }
-
   private async createEventWithPlans(
-    eventData: any,
+    aiVibeAnalysis: any,
+    embedding: number[],
     gallery: string[],
     aiPlans: any[],
     venues: Array<VenueCandidate & { website?: string; mapUrl: string }>,
     input: RegionEventInput,
     regionPlace: any,
   ) {
-    const prettyVibe = this.vibeMapping.prettyVibeName(input.vibeKey as any);
+    const prettyVibe = this.vibeMapping.prettyVibeName(
+      aiVibeAnalysis.vibeKey as any,
+    );
 
     // Default time slots if not provided
     const startTime = input.startTime || this.getDefaultStartTime();
@@ -228,17 +199,22 @@ export class RegionIngestionService {
 
     return this.prisma.$transaction(async (tx) => {
       // Convert embedding to Buffer for Prisma Bytes
-      const embeddingBuffer = eventData.embedding
-        ? Buffer.from(Float32Array.from(eventData.embedding as number[]).buffer)
+      const embeddingBuffer = embedding
+        ? Buffer.from(Float32Array.from(embedding).buffer)
         : null;
+
+      // Convert AI mapped interests from slugs to IDs
+      const interests = await tx.interest.findMany({
+        where: {
+          slug: { in: aiVibeAnalysis.mappedInterests.map((i: any) => i.id) },
+        },
+      });
 
       // Create event
       const event = await tx.event.create({
         data: {
           title: `${regionPlace.name} — ${prettyVibe}`,
-          description: this.vibeMapping.getVibeDescription(
-            input.vibeKey as any,
-          ),
+          description: aiVibeAnalysis.vibeAnalysis,
           imageUrl: gallery[0] || null,
           lat: new Prisma.Decimal(regionPlace.geometry.location.lat),
           lng: new Prisma.Decimal(regionPlace.geometry.location.lng),
@@ -250,13 +226,14 @@ export class RegionIngestionService {
           regionPlaceId: regionPlace.place_id,
           regionName: regionPlace.name,
           gallery,
-          vibeKey: input.vibeKey as any,
+          vibeKey: aiVibeAnalysis.vibeKey as any,
+          vibeAnalysis: aiVibeAnalysis.vibeAnalysis,
           searchRadiusM: input.searchRadiusM || 800,
 
           // AI fields
-          aiNormalized: eventData.normalized,
+          aiNormalized: aiVibeAnalysis,
           embedding: embeddingBuffer,
-          tags: eventData.normalized.tags || [],
+          tags: [],
 
           votingState: 'NOT_STARTED',
         },
@@ -268,7 +245,7 @@ export class RegionIngestionService {
           const planData = aiPlans[index] || {
             title: `${venue.name} experience`,
             description: `Experience ${venue.name}`,
-            emoji: this.getVibeEmoji(input.vibeKey),
+            emoji: this.getVibeEmoji(aiVibeAnalysis.vibeKey),
           };
 
           return tx.plan.create({
@@ -302,16 +279,12 @@ export class RegionIngestionService {
       );
 
       // Create event interests mapping (slug -> ID lookup)
-      const mappedInterests = (eventData.normalized?.mappedInterests ??
-        []) as Array<{
-        id: string;
-        weight?: number;
-      }>;
+      const mappedInterests = aiVibeAnalysis.mappedInterests || [];
 
       if (mappedInterests.length > 0) {
-        const slugs = mappedInterests.map((m) => m.id);
+        const slugs = mappedInterests.map((m: any) => m.id);
         const slugToWeight = new Map(
-          mappedInterests.map((m) => [m.id, m.weight ?? 1]),
+          mappedInterests.map((m: any) => [m.id, m.weight ?? 1]),
         );
 
         const interests = await tx.interest.findMany({
@@ -330,10 +303,10 @@ export class RegionIngestionService {
               create: {
                 eventId: event.id,
                 interestId: interest.id,
-                weight: slugToWeight.get(interest.slug) ?? 1,
+                weight: (slugToWeight.get(interest.slug) as number) ?? 1,
               },
               update: {
-                weight: slugToWeight.get(interest.slug) ?? 1,
+                weight: (slugToWeight.get(interest.slug) as number) ?? 1,
               },
             });
           } catch (error) {

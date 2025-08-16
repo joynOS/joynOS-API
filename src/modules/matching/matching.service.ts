@@ -41,6 +41,7 @@ export class MatchingService {
         regionName: true,
         gallery: true,
         vibeKey: true,
+        vibeAnalysis: true,
         searchRadiusM: true,
       },
     });
@@ -216,6 +217,7 @@ export class MatchingService {
         regionName: e.regionName,
         gallery: e.gallery,
         vibeKey: e.vibeKey,
+        vibeAnalysis: e.vibeAnalysis,
         searchRadiusM: e.searchRadiusM,
       });
     }

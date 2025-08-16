@@ -194,6 +194,7 @@ model Event {
   regionName         String?     // e.g., "SoHo", "Praia de Cabo Branco"
   gallery            String[]    @default([]) // array of image URLs (proxied)
   vibeKey            VibeKey?
+  vibeAnalysis       String?     // AI-generated vibe description based on venue/context
   searchRadiusM      Int?        // e.g., 600..1200m used to find venues
   
   plans              Plan[]
