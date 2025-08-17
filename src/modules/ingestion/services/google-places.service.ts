@@ -145,7 +145,10 @@ export class GooglePlacesService {
 
         if (response.data.status === 'OK') {
           const candidates = response.data.results
-            .filter((place: any) => place.rating >= 4.0 && place.photos && place.photos.length > 0) // Only venues with good rating AND photos
+            .filter(
+              (place: any) =>
+                place.rating >= 4.0 && place.photos && place.photos.length > 0,
+            ) // Only venues with good rating AND photos
             .map((place: any) => ({
               placeId: place.place_id,
               name: place.name,
@@ -227,25 +230,34 @@ export class GooglePlacesService {
 
   /**
    * Determine external booking URL from website
+   * Priority: 1. Official website 2. Google Maps as fallback
    */
   determineBookingUrl(website?: string, mapUrl?: string): string {
-    if (!website) {
-      return mapUrl || '';
+    // Always prioritize official website if available
+    if (website && this.isValidWebsite(website)) {
+      return website;
     }
 
-    // Check if website contains known booking platforms
-    const bookingPlatforms = ['opentable', 'resy', 'sevenrooms', 'tock'];
-    const hasBookingPlatform = bookingPlatforms.some((platform) =>
-      website.toLowerCase().includes(platform),
-    );
+    // Fallback to Google Maps
+    return mapUrl || '';
+  }
 
-    return hasBookingPlatform ? website : mapUrl || website;
+  private isValidWebsite(website: string): boolean {
+    try {
+      const url = new URL(website);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Find region information for a given lat/lng using reverse geocoding
    */
-  async findRegionInfo(lat: number, lng: number): Promise<{ name: string; placeId: string } | null> {
+  async findRegionInfo(
+    lat: number,
+    lng: number,
+  ): Promise<{ name: string; placeId: string } | null> {
     try {
       const response = await axios.get(
         'https://maps.googleapis.com/maps/api/geocode/json',
@@ -260,7 +272,7 @@ export class GooglePlacesService {
 
       if (response.data.status === 'OK' && response.data.results.length > 0) {
         const result = response.data.results[0];
-        
+
         // Try to find the most specific location name
         const nameComponent = result.address_components.find(
           (component: any) =>
@@ -277,7 +289,10 @@ export class GooglePlacesService {
 
       return null;
     } catch (error) {
-      this.logger.warn(`Failed to get region info for ${lat}, ${lng}:`, error.message);
+      this.logger.warn(
+        `Failed to get region info for ${lat}, ${lng}:`,
+        error.message,
+      );
       return null;
     }
   }
