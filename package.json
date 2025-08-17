@@ -31,7 +31,12 @@
     "ingest:nyc": "ts-node src/cli/runner.ts ingest:nyc",
     "events:ai:build-plans": "ts-node src/cli/runner.ts events:ai:build-plans",
     "events:clear": "ts-node src/cli/runner.ts events:clear",
-    "ingest:regions": "ts-node src/cli/runner.ts ingest:regions"
+    "ingest:regions": "ts-node src/cli/runner.ts ingest:regions",
+    "discovery": "ts-node src/cli/discovery-runner.ts",
+    "discovery:manhattan": "npm run discovery -- --preset manhattan",
+    "discovery:brooklyn": "npm run discovery -- --preset brooklyn",
+    "discovery:queens": "npm run discovery -- --preset queens",
+    "discovery:preview": "npm run discovery -- --dry-run"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

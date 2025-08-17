@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,10 +9,17 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { EventsRepository } from '../events/events.repository';
 import { IngestionService } from '../ingestion/ingestion.service';
 import { RegionIngestionService } from '../ingestion/services/region-ingestion.service';
+import { DiscoveryService } from '../ingestion/services/discovery.service';
 import {
   CreateRegionEventDto,
   BulkCreateRegionEventsDto,
 } from '../ingestion/dto/region-ingestion.dto';
+import {
+  DiscoverAndGenerateDto,
+  DiscoverPreviewDto,
+  DiscoveryPreviewResponse,
+  DiscoverAndGenerateResponse,
+} from '../ingestion/dto/discovery.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -23,6 +30,7 @@ export class AdminController {
     private readonly eventsRepo: EventsRepository,
     private readonly ingestion: IngestionService,
     private readonly regionIngestion: RegionIngestionService,
+    private readonly discovery: DiscoveryService,
   ) {}
   @Post('events')
   @ApiOperation({ summary: 'Create event' })
@@ -166,5 +174,35 @@ export class AdminController {
       failed,
       results,
     };
+  }
+
+  @Get('ingestion/discover-preview')
+  @ApiOperation({ 
+    summary: 'Preview region discovery without creating events',
+    description: 'Discover regions and analyze potential vibes for a given location and radius'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Preview of discovered regions',
+  })
+  async discoverPreview(@Query() query: DiscoverPreviewDto): Promise<DiscoveryPreviewResponse> {
+    return this.discovery.discoverPreview(query);
+  }
+
+  @Post('ingestion/discover-and-generate')
+  @ApiOperation({ 
+    summary: 'Discover regions and automatically generate events',
+    description: 'AI-powered discovery of regions within a radius, then automatic event generation with real venues'
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Events generated from discovered regions',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters'
+  })
+  async discoverAndGenerate(@Body() dto: DiscoverAndGenerateDto): Promise<DiscoverAndGenerateResponse> {
+    return this.discovery.discoverAndGenerate(dto);
   }
 }

@@ -157,6 +157,7 @@ export class EventsRepository {
     to?: Date;
     tags?: string[];
     take?: number;
+    userId?: string;
   }) {
     const where: any = {};
     if (params.from || params.to) {
@@ -202,6 +203,14 @@ export class EventsRepository {
         gallery: true,
         vibeKey: true,
         searchRadiusM: true,
+        // Include member data if userId provided
+        members: params.userId ? {
+          where: { userId: params.userId },
+          select: {
+            status: true,
+            bookingStatus: true,
+          }
+        } : false,
       },
     });
   }

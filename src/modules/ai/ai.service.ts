@@ -84,10 +84,22 @@ ${venueList}
 
 Return strictly JSON:
 {
-  "vibeKey": "RELAXED|DATE_NIGHT|PARTY|ARTSY|MORNING|CHILL|SOCIAL|CULTURAL",
+  "vibeKey": "RELAXED",
   "vibeAnalysis": "2-3 sentence description of the area's atmosphere and what kind of experience people can expect",
   "mappedInterests": [{"id": "slug", "weight": 1-5}]
 }
+
+IMPORTANT: vibeKey must be EXACTLY ONE of these values:
+- RELAXED
+- DATE_NIGHT  
+- PARTY
+- ARTSY
+- MORNING
+- CHILL
+- SOCIAL
+- CULTURAL
+
+Choose the SINGLE most dominant vibe based on the venues. Do not combine multiple vibes.
 
 Available interest slugs: ["jazz-music","live-music","theater","art-galleries","wine-tasting","food-tours","museums","gaming","karaoke","games","running","hiking","photography","meditation","travel","comedy-shows","beach-days","cooking","gardening"]
 

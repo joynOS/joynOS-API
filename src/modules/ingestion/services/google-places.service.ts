@@ -145,7 +145,7 @@ export class GooglePlacesService {
 
         if (response.data.status === 'OK') {
           const candidates = response.data.results
-            .filter((place: any) => place.rating >= 4.0) // Minimum rating filter
+            .filter((place: any) => place.rating >= 4.0 && place.photos && place.photos.length > 0) // Only venues with good rating AND photos
             .map((place: any) => ({
               placeId: place.place_id,
               name: place.name,
@@ -240,5 +240,45 @@ export class GooglePlacesService {
     );
 
     return hasBookingPlatform ? website : mapUrl || website;
+  }
+
+  /**
+   * Find region information for a given lat/lng using reverse geocoding
+   */
+  async findRegionInfo(lat: number, lng: number): Promise<{ name: string; placeId: string } | null> {
+    try {
+      const response = await axios.get(
+        'https://maps.googleapis.com/maps/api/geocode/json',
+        {
+          params: {
+            latlng: `${lat},${lng}`,
+            key: this.apiKey,
+            result_type: 'neighborhood|sublocality|locality',
+          },
+        },
+      );
+
+      if (response.data.status === 'OK' && response.data.results.length > 0) {
+        const result = response.data.results[0];
+        
+        // Try to find the most specific location name
+        const nameComponent = result.address_components.find(
+          (component: any) =>
+            component.types.includes('neighborhood') ||
+            component.types.includes('sublocality') ||
+            component.types.includes('locality'),
+        );
+
+        return {
+          name: nameComponent?.long_name || result.formatted_address,
+          placeId: result.place_id,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.warn(`Failed to get region info for ${lat}, ${lng}:`, error.message);
+      return null;
+    }
   }
 }

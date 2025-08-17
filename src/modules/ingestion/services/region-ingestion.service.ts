@@ -25,11 +25,16 @@ export class RegionIngestionService {
     );
 
     try {
-      // 1. Resolve region place
-      const regionPlace = await this.googlePlaces.resolveRegionPlace(
-        input.region,
-      );
-      this.logger.debug(`Resolved region: ${regionPlace.name}`);
+      // 1. Resolve region place - require real Google Places data
+      let regionPlace: any;
+      try {
+        regionPlace = await this.googlePlaces.resolveRegionPlace(input.region);
+        this.logger.debug(`Resolved region: ${regionPlace.name}`);
+      } catch (error) {
+        // Don't create synthetic regions - require real Google Places data
+        this.logger.error(`Failed to resolve region place for: ${input.region.name || input.region.placeId}: ${error.message}`);
+        throw new Error(`Cannot create event without valid region data from Google Places: ${error.message}`);
+      }
 
       // 2. Build region photo gallery
       const gallery = this.buildRegionGallery(regionPlace.photos || []);
@@ -120,6 +125,10 @@ export class RegionIngestionService {
   private buildRegionGallery(
     photos: Array<{ photo_reference: string }>,
   ): string[] {
+    if (!photos || photos.length === 0) {
+      return []; // Return empty array instead of fake Unsplash images
+    }
+
     return photos
       .slice(0, 6) // Keep max 6 photos
       .map((photo) =>

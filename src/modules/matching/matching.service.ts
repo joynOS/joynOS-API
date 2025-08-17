@@ -198,6 +198,12 @@ export class MatchingService {
         status: m.status,
       }));
 
+      // Check if current user is a member
+      const currentUserMember = members.find(m => m.userId === userId);
+      const isMember = !!currentUserMember;
+      const memberStatus = currentUserMember?.status || null;
+      const bookingStatus = currentUserMember?.bookingStatus || null;
+
       cards.push({
         eventId: e.id,
         title: e.title,
@@ -219,6 +225,10 @@ export class MatchingService {
         vibeKey: e.vibeKey,
         vibeAnalysis: e.vibeAnalysis,
         searchRadiusM: e.searchRadiusM,
+        // Membership info
+        isMember,
+        memberStatus,
+        bookingStatus,
       });
     }
 

@@ -49,9 +49,18 @@ export class EventsService {
         event,
         params.userId!,
       );
+      
+      // Extract membership info
+      const memberInfo = (event as any).members?.[0];
+      const isMember = !!memberInfo;
+      
       eventsWithScores.push({
         ...event,
         ...scores,
+        isMember,
+        memberStatus: memberInfo?.status || null,
+        bookingStatus: memberInfo?.bookingStatus || null,
+        members: undefined, // Remove members array from response
       });
     }
 

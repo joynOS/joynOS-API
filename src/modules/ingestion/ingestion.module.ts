@@ -6,6 +6,7 @@ import { AssetsModule } from '../assets/assets.module';
 import { RegionIngestionService } from './services/region-ingestion.service';
 import { GooglePlacesService } from './services/google-places.service';
 import { VibeMappingService } from './services/vibe-mapping.service';
+import { DiscoveryService } from './services/discovery.service';
 
 @Module({
   imports: [ConfigModule, AIModule, AssetsModule],
@@ -14,12 +15,14 @@ import { VibeMappingService } from './services/vibe-mapping.service';
     RegionIngestionService,
     GooglePlacesService,
     VibeMappingService,
+    DiscoveryService,
   ],
   exports: [
     IngestionService,
     RegionIngestionService,
     GooglePlacesService,
     VibeMappingService,
+    DiscoveryService,
   ],
 })
 export class IngestionModule {}
