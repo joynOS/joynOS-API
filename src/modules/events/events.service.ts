@@ -49,11 +49,11 @@ export class EventsService {
         event,
         params.userId!,
       );
-      
+
       // Extract membership info
       const memberInfo = (event as any).members?.[0];
       const isMember = !!memberInfo;
-      
+
       eventsWithScores.push({
         ...event,
         ...scores,

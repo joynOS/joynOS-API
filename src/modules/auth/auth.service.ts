@@ -1,21 +1,44 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersRepository } from '../users/users.repository';
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { AssetsService } from '../assets/assets.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwt: JwtService,
     private readonly usersRepo: UsersRepository,
+    private readonly assetsService: AssetsService,
   ) {}
 
-  async signup(email: string, password: string, name: string) {
+  async signup(
+    email: string,
+    password: string,
+    name: string,
+    avatarFile?: Express.Multer.File,
+  ) {
     const exists = await this.usersRepo.findByEmail(email);
     if (exists) throw new UnauthorizedException();
+
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await this.usersRepo.create({ email, name, passwordHash });
+
+    let avatarUrl: string | undefined;
+    if (avatarFile) {
+      avatarUrl = await this.assetsService.uploadFile(
+        avatarFile.buffer,
+        `avatars/${randomUUID()}.${this.getFileExtension(avatarFile.originalname)}`,
+        avatarFile.mimetype,
+      );
+    }
+
+    const user = await this.usersRepo.create({
+      email,
+      name,
+      passwordHash,
+      avatar: avatarUrl,
+    });
     return this.issueTokens(user.id);
   }
 
@@ -72,5 +95,9 @@ export class AuthService {
   async logout(userId: string) {
     await this.usersRepo.saveRefreshToken(userId, '');
     return { ok: true };
+  }
+
+  private getFileExtension(filename: string): string {
+    return filename.split('.').pop() || 'jpg';
   }
 }

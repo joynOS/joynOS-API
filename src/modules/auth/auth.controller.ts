@@ -1,5 +1,18 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SignInDto, SignUpDto } from '../users/dto';
 import { AuthService } from './auth.service';
 
@@ -9,10 +22,15 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('signup')
-  @ApiOperation({ summary: 'Create account' })
+  @UseInterceptors(FileInterceptor('avatar'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create account with optional profile photo' })
   @ApiResponse({ status: 201 })
-  async signup(@Body() dto: SignUpDto) {
-    return this.auth.signup(dto.email, dto.password, dto.name);
+  async signup(
+    @Body() dto: SignUpDto,
+    @UploadedFile() avatar?: Express.Multer.File,
+  ) {
+    return this.auth.signup(dto.email, dto.password, dto.name, avatar);
   }
 
   @Post('signin')

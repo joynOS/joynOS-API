@@ -204,13 +204,15 @@ export class EventsRepository {
         vibeKey: true,
         searchRadiusM: true,
         // Include member data if userId provided
-        members: params.userId ? {
-          where: { userId: params.userId },
-          select: {
-            status: true,
-            bookingStatus: true,
-          }
-        } : false,
+        members: params.userId
+          ? {
+              where: { userId: params.userId },
+              select: {
+                status: true,
+                bookingStatus: true,
+              },
+            }
+          : false,
       },
     });
   }

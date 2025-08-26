@@ -11,6 +11,7 @@ export class SignUpDto {
   @ApiProperty() @IsEmail() email: string;
   @ApiProperty() @IsString() password: string;
   @ApiProperty() @IsString() name: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() avatar?: string;
 }
 
 export class SignInDto {

@@ -197,6 +197,16 @@ model Event {
   vibeAnalysis       String?     // AI-generated vibe description based on venue/context
   searchRadiusM      Int?        // e.g., 600..1200m used to find venues
   
+  // EXTERNAL EVENT FIELDS (new)
+  organizerName      String?     // Event organizer name
+  attendeeCount      Int?        @default(0) // Current attendees
+  capacity           Int?        // Maximum capacity
+  priceDisplay       String?     // "Free", "$15-25", "$$"
+  requiresRSVP       Boolean     @default(false) // Requires RSVP/registration
+  categories         String[]    @default([]) // Original API categories
+  lastSyncAt         DateTime?   // Last sync with external API
+  syncStatus         String?     @default("active") // "active" | "cancelled" | "sold_out"
+  
   plans              Plan[]
   members            Member[]
   messages           EventMessage[]

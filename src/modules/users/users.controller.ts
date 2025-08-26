@@ -6,9 +6,13 @@ import {
   Put,
   UseGuards,
   Req,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -32,10 +36,16 @@ export class UsersController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: 'Update profile' })
+  @UseInterceptors(FileInterceptor('avatar'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Update profile with optional photo upload' })
   @ApiResponse({ status: 200 })
-  async update(@Req() req: any, @Body() dto: UpdateMeDto) {
-    return this.service.update(req.user.userId, dto);
+  async update(
+    @Req() req: any,
+    @Body() dto: UpdateMeDto,
+    @UploadedFile() avatar?: Express.Multer.File,
+  ) {
+    return this.service.update(req.user.userId, dto, avatar);
   }
 
   @Put('me/preferences')

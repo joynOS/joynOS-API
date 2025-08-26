@@ -6,10 +6,19 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Param,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AssetsService } from './assets.service';
+import { createReadStream } from 'fs';
+import { join } from 'path';
 
 @ApiTags('Assets')
 @Controller('assets')
@@ -104,6 +113,47 @@ export class AssetsController {
         'Failed to fetch photo',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Get('uploads/:folder/:filename')
+  @ApiOperation({ summary: 'Serve uploaded files' })
+  @ApiParam({ name: 'folder', description: 'Upload folder (e.g., avatars)' })
+  @ApiParam({ name: 'filename', description: 'File name' })
+  @ApiResponse({ status: 200, description: 'File served' })
+  @ApiResponse({ status: 404, description: 'File not found' })
+  async serveUploadedFile(
+    @Param('folder') folder: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const filePath = join(process.cwd(), 'uploads', folder, filename);
+      const fileStream = createReadStream(filePath);
+
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      const ext = filename.split('.').pop()?.toLowerCase();
+      const mimeTypes = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+      };
+
+      const contentType =
+        mimeTypes[ext as keyof typeof mimeTypes] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+
+      fileStream.on('error', () => {
+        res.status(HttpStatus.NOT_FOUND).json({ error: 'File not found' });
+      });
+
+      fileStream.pipe(res);
+    } catch (error) {
+      res.status(HttpStatus.NOT_FOUND).json({ error: 'File not found' });
     }
   }
 }

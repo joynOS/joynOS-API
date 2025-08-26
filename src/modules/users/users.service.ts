@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { PreferencesDto, UpdateMeDto, UserInterestsDto } from './dto';
 import { PrismaService } from '../../database/prisma.service';
+import { AssetsService } from '../assets/assets.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly repo: UsersRepository,
     private readonly prisma: PrismaService,
+    private readonly assetsService: AssetsService,
   ) {}
 
   async me(userId: string) {
@@ -19,8 +22,23 @@ export class UsersService {
     return { ...user, hasInterests: interestsCount > 0 } as any;
   }
 
-  async update(userId: string, dto: UpdateMeDto) {
-    return this.repo.update(userId, dto as any);
+  async update(
+    userId: string,
+    dto: UpdateMeDto,
+    avatarFile?: Express.Multer.File,
+  ) {
+    const updateData = { ...dto };
+
+    if (avatarFile) {
+      const avatarUrl = await this.assetsService.uploadFile(
+        avatarFile.buffer,
+        `avatars/${randomUUID()}.${this.getFileExtension(avatarFile.originalname)}`,
+        avatarFile.mimetype,
+      );
+      (updateData as any).avatar = avatarUrl;
+    }
+
+    return this.repo.update(userId, updateData as any);
   }
 
   async updatePreferences(userId: string, dto: PreferencesDto) {
@@ -40,5 +58,9 @@ export class UsersService {
       });
     }
     return this.repo.findById(userId);
+  }
+
+  private getFileExtension(filename: string): string {
+    return filename.split('.').pop() || 'jpg';
   }
 }

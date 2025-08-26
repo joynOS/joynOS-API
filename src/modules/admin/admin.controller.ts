@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -177,22 +185,26 @@ export class AdminController {
   }
 
   @Get('ingestion/discover-preview')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Preview region discovery without creating events',
-    description: 'Discover regions and analyze potential vibes for a given location and radius'
+    description:
+      'Discover regions and analyze potential vibes for a given location and radius',
   })
   @ApiResponse({
     status: 200,
     description: 'Preview of discovered regions',
   })
-  async discoverPreview(@Query() query: DiscoverPreviewDto): Promise<DiscoveryPreviewResponse> {
+  async discoverPreview(
+    @Query() query: DiscoverPreviewDto,
+  ): Promise<DiscoveryPreviewResponse> {
     return this.discovery.discoverPreview(query);
   }
 
   @Post('ingestion/discover-and-generate')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Discover regions and automatically generate events',
-    description: 'AI-powered discovery of regions within a radius, then automatic event generation with real venues'
+    description:
+      'AI-powered discovery of regions within a radius, then automatic event generation with real venues',
   })
   @ApiResponse({
     status: 201,
@@ -200,9 +212,11 @@ export class AdminController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid input parameters'
+    description: 'Invalid input parameters',
   })
-  async discoverAndGenerate(@Body() dto: DiscoverAndGenerateDto): Promise<DiscoverAndGenerateResponse> {
+  async discoverAndGenerate(
+    @Body() dto: DiscoverAndGenerateDto,
+  ): Promise<DiscoverAndGenerateResponse> {
     return this.discovery.discoverAndGenerate(dto);
   }
 }

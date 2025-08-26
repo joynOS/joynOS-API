@@ -199,7 +199,7 @@ export class MatchingService {
       }));
 
       // Check if current user is a member
-      const currentUserMember = members.find(m => m.userId === userId);
+      const currentUserMember = members.find((m) => m.userId === userId);
       const isMember = !!currentUserMember;
       const memberStatus = currentUserMember?.status || null;
       const bookingStatus = currentUserMember?.bookingStatus || null;

@@ -6,6 +6,8 @@ import { AssetsService } from '../../assets/assets.service';
 import { GooglePlacesService } from './google-places.service';
 import { VibeMappingService } from './vibe-mapping.service';
 import { RegionEventInput, VenueCandidate } from '../types/region.types';
+import { ExternalAPIAggregatorService } from '../../external-apis/services/external-api-aggregator.service';
+import { ConvertedEvent } from '../../external-apis/interfaces/external-event.interface';
 
 @Injectable()
 export class RegionIngestionService {
@@ -17,6 +19,7 @@ export class RegionIngestionService {
     private readonly vibeMapping: VibeMappingService,
     private readonly aiService: AIService,
     private readonly assetsService: AssetsService,
+    private readonly externalAggregator?: ExternalAPIAggregatorService,
   ) {}
 
   async generateRegionEvent(input: RegionEventInput) {
@@ -32,8 +35,12 @@ export class RegionIngestionService {
         this.logger.debug(`Resolved region: ${regionPlace.name}`);
       } catch (error) {
         // Don't create synthetic regions - require real Google Places data
-        this.logger.error(`Failed to resolve region place for: ${input.region.name || input.region.placeId}: ${error.message}`);
-        throw new Error(`Cannot create event without valid region data from Google Places: ${error.message}`);
+        this.logger.error(
+          `Failed to resolve region place for: ${input.region.name || input.region.placeId}: ${error.message}`,
+        );
+        throw new Error(
+          `Cannot create event without valid region data from Google Places: ${error.message}`,
+        );
       }
 
       // 2. Build region photo gallery
@@ -97,17 +104,76 @@ export class RegionIngestionService {
         regionPlace.name,
         aiVibeAnalysis.vibeKey,
         enrichedVenues,
+        input.startTime,
+        input.endTime,
       );
 
-      // 7. Generate embedding based on AI analysis
+      // 7. Generate specific plan vibe analysis
+      const planVibesAnalysis = await this.aiService.analyzePlanVibes({
+        eventTitle: `${regionPlace.name} — ${this.vibeMapping.prettyVibeName(aiVibeAnalysis.vibeKey as any)}`,
+        regionName: regionPlace.name,
+        plans: aiPlans,
+        venues: topTwoVenues.map((v) => ({
+          name: v.name,
+          address: (v as any).vicinity || '',
+          types: v.types || [],
+          rating: v.rating,
+          priceLevel: v.priceLevel,
+        })),
+      });
+
+      (aiVibeAnalysis as any).vibeAnalysis = planVibesAnalysis.overallEventVibe;
+      (aiVibeAnalysis as any).planAnalyses = {
+        plan1: planVibesAnalysis.plan1Analysis,
+        plan2: planVibesAnalysis.plan2Analysis,
+      };
+
+      // 8. Optimize photos for discovery card
+      const photoOptimization = await this.aiService.optimizeDiscoveryPhotos({
+        eventTitle: `${regionPlace.name} — ${this.vibeMapping.prettyVibeName(aiVibeAnalysis.vibeKey as any)}`,
+        regionName: regionPlace.name,
+        vibeKey: aiVibeAnalysis.vibeKey,
+        availablePhotos: (regionPlace.photos || []).map((photo: any) => ({
+          url: this.assetsService.buildPhotoUrl(photo.photo_reference, 1280),
+          width: photo.width || 1280,
+          height: photo.height || 960,
+          attributions: photo.html_attributions,
+        })),
+      });
+
+      // 9. Generate enhanced discovery card content
+      const discoveryContent =
+        await this.aiService.generateDiscoveryCardContent({
+          eventTitle: `${regionPlace.name} — ${this.vibeMapping.prettyVibeName(aiVibeAnalysis.vibeKey as any)}`,
+          regionName: regionPlace.name,
+          vibeKey: aiVibeAnalysis.vibeKey,
+          plans: aiPlans,
+          venues: topTwoVenues.map((v) => ({
+            name: v.name,
+            types: v.types || [],
+            rating: v.rating,
+            priceLevel: v.priceLevel,
+          })),
+        });
+
+      // Update gallery with optimized photos
+      const optimizedGallery = [
+        photoOptimization.primaryPhoto,
+        ...photoOptimization.galleryPhotos,
+      ].filter(Boolean);
+
+      (aiVibeAnalysis as any).discoveryContent = discoveryContent;
+      (aiVibeAnalysis as any).photoOptimization = photoOptimization;
+
+      // 10. Generate embedding based on AI analysis
       const embeddingText = `${regionPlace.name} – ${aiVibeAnalysis.vibeKey}\n${aiVibeAnalysis.vibeAnalysis}\n${topTwoVenues.map((v) => v.name).join('\n')}`;
       const embedding = await this.aiService.embed(embeddingText);
 
-      // 8. Create event and plans
+      // 11. Create event and plans with optimized gallery
       const event = await this.createEventWithPlans(
         aiVibeAnalysis,
         embedding,
-        gallery,
+        optimizedGallery.length > 0 ? optimizedGallery : gallery,
         aiPlans,
         enrichedVenues,
         input,
@@ -140,6 +206,8 @@ export class RegionIngestionService {
     regionName: string,
     vibeKey: string,
     venues: Array<VenueCandidate & { website?: string; mapUrl: string }>,
+    startTime?: Date,
+    endTime?: Date,
   ) {
     const eventTitle = `${regionName} — ${this.vibeMapping.prettyVibeName(vibeKey as any)}`;
     const venueInfo = venues
@@ -147,29 +215,66 @@ export class RegionIngestionService {
       .join(', ');
 
     try {
-      const plans = await this.aiService.buildTwoPlans({
+      const basicPlans = await this.aiService.buildTwoPlans({
         title: eventTitle,
         venue: venueInfo,
         address: regionName,
       });
-      return plans;
+
+      const enhancedPlans = await this.aiService.enhancePlanDescriptions({
+        eventTitle,
+        regionName,
+        venue: venueInfo,
+        address: regionName,
+        startTime,
+        endTime,
+        plans: basicPlans,
+        nearbyVenues: venues.map((v) => ({
+          name: v.name,
+          types: v.types || [],
+          rating: v.rating,
+          priceLevel: v.priceLevel,
+        })),
+      });
+
+      return enhancedPlans.map((plan) => ({
+        title: plan.title,
+        description: plan.detailedDescription || plan.description,
+        emoji: plan.emoji || this.getVibeEmoji(vibeKey),
+        timeline: plan.timeline,
+        vibe: plan.vibe,
+        highlights: plan.highlights,
+      }));
     } catch (error) {
       this.logger.warn(
-        `AI plan generation failed, using fallback:`,
+        `AI plan generation failed, using enhanced fallback:`,
         error.message,
       );
 
-      // Fallback plan generation
       return [
         {
-          title: `${venues[0].name} experience`,
-          description: `Enjoy the atmosphere at ${venues[0].name}`,
+          title: `Discover ${venues[0].name}`,
+          description: `Experience the authentic atmosphere of ${venues[0].name} in ${regionName}. Perfect for a ${this.vibeMapping.prettyVibeName(vibeKey as any).toLowerCase()} vibe with local charm and character.`,
           emoji: this.getVibeEmoji(vibeKey),
+          timeline: `Evening: Arrive and explore the ${venues[0].types?.[0] || 'venue'}`,
+          vibe: vibeKey.toLowerCase(),
+          highlights: [
+            `${venues[0].name} experience`,
+            `${regionName} atmosphere`,
+            `Local discoveries`,
+          ],
         },
         {
-          title: `${venues[1].name} experience`,
-          description: `Discover what ${venues[1].name} has to offer`,
+          title: `Explore ${venues[1].name}`,
+          description: `Immerse yourself in what makes ${venues[1].name} special in the heart of ${regionName}. A perfect match for those seeking a ${this.vibeMapping.prettyVibeName(vibeKey as any).toLowerCase()} experience.`,
           emoji: this.getVibeEmoji(vibeKey),
+          timeline: `Evening: Start your ${venues[1].types?.[0] || 'venue'} adventure`,
+          vibe: vibeKey.toLowerCase(),
+          highlights: [
+            `${venues[1].name} highlights`,
+            `${regionName} exploration`,
+            `Memorable moments`,
+          ],
         },
       ];
     }
@@ -347,5 +452,249 @@ export class RegionIngestionService {
     const endTime = new Date(startTime);
     endTime.setHours(endTime.getHours() + 3); // 3 hours duration
     return endTime;
+  }
+
+  // NEW METHODS FOR EXTERNAL EVENTS INTEGRATION
+
+  async generateMixedEvents(params: {
+    lat: number;
+    lng: number;
+    radius: number;
+    maxEvents: number;
+    eventSourceMix?: {
+      synthetic: number; // % synthetic events
+      external: number; // % external events
+    };
+    dateRange?: {
+      startDate?: Date;
+      endDate?: Date;
+    };
+  }): Promise<any[]> {
+    const mix = params.eventSourceMix || { synthetic: 30, external: 70 };
+    const syntheticCount = Math.round((params.maxEvents * mix.synthetic) / 100);
+    const externalCount = params.maxEvents - syntheticCount;
+
+    this.logger.log(
+      `Generating mixed events: ${syntheticCount} synthetic, ${externalCount} external`,
+    );
+
+    const allEvents: any[] = [];
+
+    // Generate synthetic events (current system)
+    if (syntheticCount > 0) {
+      try {
+        const syntheticEvents = await this.generateSyntheticEventsInArea(
+          params.lat,
+          params.lng,
+          params.radius,
+          syntheticCount,
+        );
+        allEvents.push(...(syntheticEvents as any[]));
+        this.logger.debug(
+          `Generated ${syntheticEvents.length} synthetic events`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to generate synthetic events: ${error.message}`,
+        );
+      }
+    }
+
+    // Discover and convert external events
+    if (externalCount > 0 && this.externalAggregator) {
+      try {
+        const externalEvents = await this.externalAggregator.discoverEvents({
+          lat: params.lat,
+          lng: params.lng,
+          radius: params.radius,
+          limit: externalCount * 2, // Get more to allow filtering
+          startDate: params.dateRange?.startDate || new Date(),
+          endDate:
+            params.dateRange?.endDate ||
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Next 30 days
+        });
+
+        const convertedEvents =
+          await this.externalAggregator.convertToInternalFormat(
+            externalEvents.slice(0, externalCount),
+          );
+        const savedEvents = await this.saveExternalEvents(convertedEvents);
+        allEvents.push(...(savedEvents as any[]));
+        this.logger.debug(`Generated ${savedEvents.length} external events`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to generate external events: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(`Total events generated: ${allEvents.length}`);
+    return allEvents;
+  }
+
+  private async generateSyntheticEventsInArea(
+    lat: number,
+    lng: number,
+    radius: number,
+    count: number,
+  ): Promise<any[]> {
+    // Use existing regions or create new ones for the area
+    const regionPresets = [
+      { name: 'Creative Hub', vibeKey: 'ARTSY' },
+      { name: 'Social District', vibeKey: 'SOCIAL' },
+      { name: 'Chill Zone', vibeKey: 'CHILL' },
+      { name: 'Date Night Spot', vibeKey: 'DATE_NIGHT' },
+    ];
+
+    const events: any[] = [];
+    for (let i = 0; i < Math.min(count, regionPresets.length); i++) {
+      try {
+        const preset = regionPresets[i];
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1 + i);
+        tomorrow.setHours(19 + i, 0, 0, 0);
+
+        const endTime = new Date(tomorrow);
+        endTime.setHours(endTime.getHours() + 3);
+
+        const event = await this.generateRegionEvent({
+          region: { lat, lng }, // Use provided coordinates
+          vibeKey: preset.vibeKey as any,
+          searchRadiusM: radius,
+          startTime: tomorrow,
+          endTime: endTime,
+        });
+
+        events.push(event);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to generate synthetic event ${i}: ${error.message}`,
+        );
+      }
+    }
+
+    return events;
+  }
+
+  private async saveExternalEvents(
+    convertedEvents: ConvertedEvent[],
+  ): Promise<any[]> {
+    const savedEvents: any[] = [];
+
+    for (const eventData of convertedEvents) {
+      try {
+        const event = await this.prisma.event.upsert({
+          where: {
+            source_sourceId: {
+              source: eventData.source,
+              sourceId: eventData.sourceId,
+            },
+          },
+          update: {
+            // Update fields that might change
+            title: eventData.title,
+            description: eventData.description,
+            attendeeCount: eventData.attendeeCount,
+            syncStatus: eventData.syncStatus,
+            lastSyncAt: eventData.lastSyncAt,
+          },
+          create: {
+            title: eventData.title,
+            description: eventData.description,
+            source: eventData.source,
+            sourceId: eventData.sourceId,
+            externalBookingUrl: eventData.externalBookingUrl,
+            startTime: eventData.startTime,
+            endTime: eventData.endTime,
+            venue: eventData.venue,
+            address: eventData.address,
+            lat: eventData.lat ? new Prisma.Decimal(eventData.lat) : null,
+            lng: eventData.lng ? new Prisma.Decimal(eventData.lng) : null,
+            rating: eventData.rating
+              ? new Prisma.Decimal(eventData.rating)
+              : null,
+            priceLevel: eventData.priceLevel,
+            tags: eventData.tags || [],
+            organizerName: eventData.organizerName,
+            attendeeCount: eventData.attendeeCount || 0,
+            capacity: eventData.capacity,
+            priceDisplay: eventData.priceDisplay,
+            requiresRSVP: eventData.requiresRSVP || false,
+            categories: eventData.categories || [],
+            syncStatus: eventData.syncStatus,
+            lastSyncAt: eventData.lastSyncAt,
+            vibeKey: eventData.vibeKey as any,
+            regionName: eventData.regionName,
+            regionProvider: eventData.regionProvider,
+            regionPlaceId: eventData.regionPlaceId,
+            gallery: eventData.gallery || [],
+          },
+          include: {
+            plans: true,
+            interests: true,
+          },
+        });
+
+        // Map interests if provided by AI analysis
+        await this.mapEventInterests(event.id, eventData);
+
+        savedEvents.push(event);
+        this.logger.debug(`Saved external event: ${event.title}`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to save external event ${eventData.sourceId}: ${error.message}`,
+        );
+      }
+    }
+
+    return savedEvents;
+  }
+
+  private async mapEventInterests(eventId: string, eventData: ConvertedEvent) {
+    // For external events, we don't create plans automatically
+    // The external booking URL is the primary action
+
+    // Map interests based on AI analysis if available
+    if (eventData.categories?.length) {
+      try {
+        const aiAnalysis = await this.aiService.normalizeEvent({
+          title: eventData.title || '',
+          description: eventData.description,
+          venue: eventData.venue,
+          tags: eventData.tags,
+        });
+
+        const interests = await this.prisma.interest.findMany({
+          where: { slug: { in: aiAnalysis.mappedInterests.map((i) => i.id) } },
+        });
+
+        for (const interest of interests) {
+          const weight =
+            aiAnalysis.mappedInterests.find((i) => i.id === interest.slug)
+              ?.weight || 1;
+
+          await this.prisma.eventInterest.upsert({
+            where: {
+              eventId_interestId: {
+                eventId: eventId,
+                interestId: interest.id,
+              },
+            },
+            create: {
+              eventId: eventId,
+              interestId: interest.id,
+              weight: weight,
+            },
+            update: {
+              weight: weight,
+            },
+          });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to map interests for external event ${eventId}: ${error.message}`,
+        );
+      }
+    }
   }
 }

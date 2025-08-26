@@ -3,9 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { UsersController } from './modules/users/users.controller';
-import { UsersService } from './modules/users/users.service';
-import { UsersRepository } from './modules/users/users.repository';
+import { UsersModule } from './modules/users/users.module';
 import { InterestsController } from './modules/interests/interests.controller';
 import { EventsModule } from './modules/events/events.module';
 import { QuizController } from './modules/quiz/quiz.controller';
@@ -18,12 +16,14 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { AssetsModule } from './modules/assets/assets.module';
+import { SeedModule } from './seed/seed.module';
 // removed global idempotency interceptor; apply per-route
 
 @Module({
   imports: [
     DatabaseModule,
     AuthModule,
+    UsersModule,
     EventsModule,
     JwtModule.register({}),
     AIModule,
@@ -31,20 +31,14 @@ import { AssetsModule } from './modules/assets/assets.module';
     MatchingModule,
     ProfileModule,
     AssetsModule,
+    SeedModule,
   ],
   controllers: [
     AppController,
-    UsersController,
     InterestsController,
     QuizController,
     AdminController,
   ],
-  providers: [
-    AppService,
-    UsersService,
-    UsersRepository,
-    EventsRepository,
-    JwtAuthGuard,
-  ],
+  providers: [AppService, EventsRepository, JwtAuthGuard],
 })
 export class AppModule {}

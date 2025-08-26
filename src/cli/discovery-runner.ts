@@ -43,7 +43,7 @@ class DiscoveryRunner {
 
   async run() {
     const config = this.parseArguments();
-    
+
     this.logger.log('🚀 Starting NYC Event Discovery...');
     this.printConfig(config);
 
@@ -206,7 +206,7 @@ EXAMPLES:
 
   private printConfig(config: DiscoveryConfig) {
     const presetInfo = config.preset ? ` (${config.preset} preset)` : '';
-    
+
     console.log(`
 📍 Discovery Configuration${presetInfo}:
    Center: ${config.centerLat}, ${config.centerLng}
@@ -235,10 +235,14 @@ EXAMPLES:
    ${index + 1}. ${region.regionName}
       Location: ${region.center.lat.toFixed(4)}, ${region.center.lng.toFixed(4)}
       Venues: ${region.venueCount} (avg rating: ${region.averageRating.toFixed(1)})
-      Top Vibes: ${region.vibesRanked.slice(0, 3).map((v: any) => 
-        `${v.vibeKey} (${(v.score * 100).toFixed(0)}%)`
-      ).join(', ')}
-      Sample Venues: ${region.sampleVenues.slice(0, 3).map((v: any) => v.name).join(', ')}`);
+      Top Vibes: ${region.vibesRanked
+        .slice(0, 3)
+        .map((v: any) => `${v.vibeKey} (${(v.score * 100).toFixed(0)}%)`)
+        .join(', ')}
+      Sample Venues: ${region.sampleVenues
+        .slice(0, 3)
+        .map((v: any) => v.name)
+        .join(', ')}`);
     });
 
     console.log(`
@@ -268,7 +272,9 @@ EXAMPLES:
     if (result.skipped.length > 0) {
       console.log(`\n⚠️  Skipped Events:`);
       result.skipped.forEach((skip: any, index: number) => {
-        console.log(`   ${index + 1}. ${skip.regionName} — ${skip.vibeKey}: ${skip.reason}`);
+        console.log(
+          `   ${index + 1}. ${skip.regionName} — ${skip.vibeKey}: ${skip.reason}`,
+        );
       });
     }
 
