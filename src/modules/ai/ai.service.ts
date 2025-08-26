@@ -141,39 +141,44 @@ Base the vibeKey on the actual venue types and atmosphere. Base mappedInterests 
   }> {
     const plan1 = input.plans[0];
     const plan2 = input.plans[1];
-    const venueDetails = input.venues
-      .map(
-        (v) =>
-          `${v.name} (${v.types.join(', ')}) - Rating: ${v.rating}/5 - Price: ${'$'.repeat(v.priceLevel || 1)}`,
-      )
-      .join(', ');
+    const venue1Details = input.venues[0]
+      ? `${input.venues[0].name} (${input.venues[0].types.join(', ')}) - Rating: ${input.venues[0].rating}/5 - Price: ${'$'.repeat(input.venues[0].priceLevel || 1)}`
+      : 'Venue details not available';
+    const venue2Details = input.venues[1]
+      ? `${input.venues[1].name} (${input.venues[1].types.join(', ')}) - Rating: ${input.venues[1].rating}/5 - Price: ${'$'.repeat(input.venues[1].priceLevel || 1)}`
+      : 'Venue details not available';
 
-    const prompt = `Analyze these two event plan options and describe what makes each unique. Focus on the specific experience each plan offers.
+    const prompt = `You are analyzing TWO DIFFERENT event plan options. Each plan centers around a specific venue/experience. Your job is to describe what makes each plan's SPECIFIC EXPERIENCE unique and exciting.
+
+CRITICAL: Do NOT describe the general area or neighborhood. Focus ONLY on what participants will experience with each individual plan option.
 
 EVENT: ${input.eventTitle} in ${input.regionName}
-VENUES: ${venueDetails}
 
-PLAN 1: ${plan1.title}
-${plan1.description}
+=== PLAN 1 ANALYSIS ===
+PLAN: ${plan1.title}
+DESCRIPTION: ${plan1.description}
+PRIMARY VENUE: ${venue1Details}
 
-PLAN 2: ${plan2.title} 
-${plan2.description}
+=== PLAN 2 ANALYSIS ===  
+PLAN: ${plan2.title}
+DESCRIPTION: ${plan2.description}
+PRIMARY VENUE: ${venue2Details}
 
 Return strictly JSON:
 {
   "plan1Analysis": {
     "vibeKey": "SPECIFIC_VIBE",
-    "description": "What makes this plan special and different from plan 2",
-    "whyThisVibe": "Why this vibe fits this specific plan",
-    "expectedExperience": "What participants will actually do and feel"
+    "description": "Specific description of what participants will DO and EXPERIENCE with this exact plan option. Focus on activities, atmosphere, and unique elements of this plan's venue/experience.",
+    "whyThisVibe": "Why this specific vibe matches what participants will experience in this particular plan",
+    "expectedExperience": "Detailed walkthrough of what someone choosing this plan will actually do, see, taste, feel - be very specific to this plan's activities and venue"
   },
   "plan2Analysis": {
-    "vibeKey": "SPECIFIC_VIBE", 
-    "description": "What makes this plan special and different from plan 1",
-    "whyThisVibe": "Why this vibe fits this specific plan",
-    "expectedExperience": "What participants will actually do and feel"
+    "vibeKey": "SPECIFIC_VIBE",
+    "description": "Specific description of what participants will DO and EXPERIENCE with this different plan option. Focus on how this plan's activities and venue create a different experience from plan 1.", 
+    "whyThisVibe": "Why this specific vibe matches what participants will experience in this particular plan",
+    "expectedExperience": "Detailed walkthrough of what someone choosing this plan will actually do, see, taste, feel - be very specific to this plan's activities and venue"
   },
-  "overallEventVibe": "Brief summary of what this event location offers"
+  "overallEventVibe": "Brief 1-2 sentence summary highlighting that this event offers two distinct experiences/vibes to choose from"
 }
 
 Available vibes:
@@ -186,7 +191,11 @@ Available vibes:
 - SOCIAL (networking, meetups, community events)
 - CULTURAL (museums, theater, classical events)
 
-Make each plan analysis unique and specific to what that plan offers. Avoid generic area descriptions.`;
+IMPORTANT RULES:
+1. Each plan analysis must be about that specific plan's experience, NOT the general area
+2. Use concrete details from the plan description and venue information
+3. Make the two plans clearly different from each other
+4. Focus on activities, atmosphere, and what people will actually do`;
 
     const out = await this.modelText.generateContent(prompt);
     return this.parseJson(out.response.text());
@@ -232,9 +241,19 @@ Make each plan analysis unique and specific to what that plan offers. Avoid gene
       emoji?: string;
     }>
   > {
-    const venueContext = input.nearbyVenues
-      .map((v) => `${v.name} (${v.types.join(', ')}) - ${v.rating}/5 stars`)
-      .join(', ');
+    const plan1Venue = input.nearbyVenues[0] || {
+      name: input.venue,
+      types: ['venue'],
+      rating: 4,
+      priceLevel: 2,
+    };
+    const plan2Venue = input.nearbyVenues[1] ||
+      input.nearbyVenues[0] || {
+        name: input.venue,
+        types: ['venue'],
+        rating: 4,
+        priceLevel: 2,
+      };
 
     const eventStartTime = input.startTime
       ? input.startTime.toLocaleTimeString('en-US', {
@@ -252,35 +271,45 @@ Make each plan analysis unique and specific to what that plan offers. Avoid gene
         })
       : '10:00 PM';
 
-    const prompt = `Enhance these event plan descriptions with rich, specific details that help people visualize the experience.
+    const prompt = `Create enhanced plan descriptions that focus on the SPECIFIC experience each individual plan offers. Each plan should feel like a completely different experience.
 
-EVENT: ${input.eventTitle}
-LOCATION: ${input.venue}, ${input.address} in ${input.regionName}
-SCHEDULED TIME: ${eventStartTime} - ${eventEndTime}
-NEARBY VENUES: ${venueContext}
+CRITICAL: Do NOT describe the general area/neighborhood. Focus ONLY on what makes each plan's experience unique and exciting.
 
-PLAN 1: ${input.plans[0]?.title}
-${input.plans[0]?.description}
+EVENT: ${input.eventTitle} in ${input.regionName}
+TIME FRAME: ${eventStartTime} - ${eventEndTime}
 
-PLAN 2: ${input.plans[1]?.title}
-${input.plans[1]?.description}
+=== PLAN 1 ENHANCEMENT ===
+PLAN TITLE: ${input.plans[0]?.title}
+CURRENT DESCRIPTION: ${input.plans[0]?.description}
+PRIMARY VENUE: ${plan1Venue.name} (${plan1Venue.types.join(', ')}) - ${plan1Venue.rating}/5 stars
+
+=== PLAN 2 ENHANCEMENT ===
+PLAN TITLE: ${input.plans[1]?.title}  
+CURRENT DESCRIPTION: ${input.plans[1]?.description}
+PRIMARY VENUE: ${plan2Venue.name} (${plan2Venue.types.join(', ')}) - ${plan2Venue.rating}/5 stars
 
 Return strictly JSON array with 2 enhanced plans:
 [
   {
-    "title": "Enhanced catchy title",
-    "description": "Original concise description", 
-    "detailedDescription": "Rich 3-4 sentence description with specific details about what you'll do, see, taste, or experience",
-    "timeline": "Timeline using actual event times from ${eventStartTime} to ${eventEndTime}, broken into 2-3 time segments showing progression of activities",
-    "vibe": "One word describing the energy/mood",
-    "highlights": ["Key experience 1", "Key experience 2", "Key experience 3"],
-    "emoji": "relevant emoji"
+    "title": "Enhanced catchy title that captures this specific plan's unique appeal",
+    "description": "Concise one-line description focusing on this plan's main appeal", 
+    "detailedDescription": "Rich 3-4 sentence description focusing ONLY on what participants will experience with THIS specific plan. Include sensory details, specific activities, and what makes this plan choice special. Mention the primary venue by name and what makes it unique.",
+    "timeline": "Detailed timeline from ${eventStartTime} to ${eventEndTime}, broken into 3-4 time segments showing the progression of this specific plan's activities. Use real times and be specific about what happens when.",
+    "vibe": "One word describing this specific plan's energy/mood",
+    "highlights": ["Specific unique aspect 1 of this plan", "Specific unique aspect 2 of this plan", "Specific unique aspect 3 of this plan"],
+    "emoji": "emoji that matches this specific plan's vibe"
   }
 ]
 
-Make descriptions vivid and specific. Include sensory details, actual activities, and what makes each plan unique. Reference the specific location and nearby venues when relevant. 
+IMPORTANT RULES:
+1. Each plan description must be about that SPECIFIC plan experience, not general area info
+2. Use the primary venue name and details for each plan
+3. Make the two plans sound completely different from each other
+4. Include specific activities, atmosphere, and sensory details for each plan
+5. Timelines should show different activity progressions for each plan
+6. Highlights should be plan-specific, not generic location features
 
-IMPORTANT: Use the actual scheduled event time (${eventStartTime} - ${eventEndTime}) in your timeline, not generic placeholder times. Break the event duration into logical segments.`;
+Focus on what someone choosing Plan 1 will do vs what someone choosing Plan 2 will do - they should sound like completely different experiences.`;
 
     const out = await this.modelText.generateContent(prompt);
     return this.parseJson(out.response.text());
