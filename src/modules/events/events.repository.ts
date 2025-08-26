@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { VotingState } from '../../common/constants/domain.constants';
 
+// Voting timer configuration (in milliseconds)
+const VOTING_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
 @Injectable()
 export class EventsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -310,7 +313,7 @@ export class EventsRepository {
     });
     const event = await this.getById(eventId);
     if (event && event.votingState === VotingState.NOT_STARTED) {
-      const endsAt = new Date(Date.now() + 180000);
+      const endsAt = new Date(Date.now() + VOTING_DURATION_MS);
       await this.prisma.event.update({
         where: { id: eventId },
         data: { votingState: VotingState.OPEN, votingEndsAt: endsAt },
