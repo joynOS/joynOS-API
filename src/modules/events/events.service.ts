@@ -198,6 +198,10 @@ export class EventsService {
 
     const connectedUserIds = await this.repo.getReviewPeers(eventId, userId);
 
+    const filteredConnectedUserIds = connectedUserIds.filter(
+      (id) => id !== userId,
+    );
+
     return {
       eventId: review.eventId,
       userId: review.userId,
@@ -205,7 +209,7 @@ export class EventsService {
       planRating: review.planRating,
       planId: review.planId,
       comment: review.comment,
-      connectedUserIds,
+      connectedUserIds: filteredConnectedUserIds,
       createdAt: review.createdAt,
     };
   }
@@ -391,7 +395,8 @@ export class EventsService {
         : undefined,
     );
 
-    const first5Participants = eventMembers.slice(0, 5).map((m) => ({
+    // Filter out the current user from participants list
+    const first5Participants = otherMembers.slice(0, 5).map((m) => ({
       id: m.user.id,
       name: m.user.name,
       avatar: m.user.avatar,
