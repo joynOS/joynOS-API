@@ -642,7 +642,7 @@ Make votes feel authentic based on personalities. Include some friendly discussi
         .map((m) => `${m.userName}: ${m.message}`)
         .join('\n');
 
-      prompt = `Generate 2 natural conversation suggestions based on this recent chat history.
+      prompt = `Generate 2 SHORT conversation suggestions (max 60 characters each) based on this recent chat history.
 
 EVENT: ${input.eventTitle}
 RECENT MESSAGES:
@@ -651,39 +651,36 @@ ${recentChat}
 Return JSON:
 {
   "suggestions": [
-    "Natural follow-up message suggestion 1",
-    "Natural follow-up message suggestion 2"  
+    "Short natural response 1",
+    "Short natural response 2"  
   ],
-  "context": "Brief explanation of why these suggestions fit the conversation flow"
+  "context": "Brief explanation"
 }
 
-Make suggestions feel natural and advance the conversation. Keep them friendly and engaging.`;
+Make suggestions CONCISE, natural, and advance the conversation. Max 60 chars each.`;
     } else {
       // Generate ice-breaker suggestions based on event plans and participants
       const planInfo = input.plans
         .map((p) => `${p.title}: ${p.description}`)
         .join('\n');
-      const participantNames = input.participants.map((p) => p.name).join(', ');
-      const sharedInterests = this.extractSharedInterests(input.participants);
+      // Removed unused variables for shorter prompts
 
-      prompt = `Generate 2 ice-breaker conversation starters for this event group.
+      prompt = `Generate 2 SHORT ice-breaker messages (max 60 characters each) for this event group.
 
 EVENT: ${input.eventTitle}
-PARTICIPANTS: ${participantNames}
 PLANS:
 ${planInfo}
-${sharedInterests ? `SHARED INTERESTS: ${sharedInterests.join(', ')}` : ''}
 
 Return JSON:
 {
   "suggestions": [
-    "Ice-breaker message suggestion 1 about the event/plans",
-    "Ice-breaker message suggestion 2 about shared interests or group excitement"
+    "Short ice-breaker 1",
+    "Short ice-breaker 2"
   ],
-  "context": "Brief explanation of why these ice-breakers work for this group"
+  "context": "Brief explanation"
 }
 
-Make suggestions warm, welcoming, and specific to this event. Avoid generic greetings.`;
+Make suggestions CONCISE, warm, and specific to this event. Max 60 chars each.`;
     }
 
     try {
@@ -722,20 +719,18 @@ Make suggestions warm, welcoming, and specific to this event. Avoid generic gree
     if (hasMessages) {
       return {
         suggestions: [
-          'That sounds amazing! What time works best for everyone?',
-          "I'm so excited for this! Anyone else been to something similar before?",
+          'Sounds great! Count me in! 👍',
+          'Love this idea! What time? ⏰',
         ],
-        context: 'Fallback suggestions to keep conversation flowing',
+        context: 'Short fallback responses',
       };
     } else {
       return {
         suggestions: [
-          `Hey everyone! I'm really excited about ${
-            input.eventTitle
-          }. Anyone else looking forward to it?`,
-          'Hi all! This looks like such a fun group. What drew you to this event?',
+          'Hey everyone! So excited! 🎉',
+          'This group looks amazing! 👋',
         ],
-        context: 'Fallback ice-breakers to start the conversation',
+        context: 'Short fallback ice-breakers',
       };
     }
   }
