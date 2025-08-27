@@ -102,11 +102,20 @@ export class EventsService {
     const plans2 = await this.repo.listPlans(eventId);
 
     let scores = {};
+    let whyThisMatch: any = null;
+
     if (userId) {
       scores = await this.calculateVibeScoresForEvent(event, userId);
+
+      whyThisMatch = await this.generateWhyThisMatch(event, userId);
     }
 
-    return { ...event, plans: plans2, ...scores };
+    return {
+      ...event,
+      plans: plans2,
+      ...scores,
+      whyThisMatch,
+    };
   }
 
   private async primePlan(
@@ -446,5 +455,203 @@ export class EventsService {
       interestedCount: eventMembers.length,
       participants: first5Participants,
     };
+  }
+
+  private async generateWhyThisMatch(event: any, userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          interests: {
+            include: {
+              interest: true,
+            },
+          },
+        },
+      });
+
+      if (!user) return null;
+
+      // Get event interests
+      const eventInterests = event.tags || [];
+      const userInterests = user.interests.map((ui) => ui.interest.slug);
+
+      // Find common interests
+      const commonInterests = eventInterests.filter((tag: string) =>
+        userInterests.includes(tag),
+      );
+
+      // Get participants with their interests
+      const participants = await this.prisma.member.findMany({
+        where: {
+          eventId: event.id,
+          userId: { not: userId },
+          status: { in: ['JOINED', 'COMMITTED'] },
+        },
+        include: {
+          user: {
+            include: {
+              interests: {
+                include: {
+                  interest: true,
+                },
+              },
+            },
+          },
+        },
+        take: 5,
+      });
+
+      // Calculate participant matches based on common interests
+      const participantMatches = participants.map((member) => {
+        const memberInterests = member.user.interests.map(
+          (ui) => ui.interest.slug,
+        );
+        const sharedInterests = userInterests.filter((interest) =>
+          memberInterests.includes(interest),
+        );
+
+        return {
+          name: member.user.name,
+          score: Math.min(90, 50 + sharedInterests.length * 10),
+          reasons:
+            sharedInterests.length > 0
+              ? [
+                  `Shares ${sharedInterests.length} interests: ${sharedInterests.slice(0, 3).join(', ')}`,
+                ]
+              : ['New connection opportunity'],
+        };
+      });
+
+      // Generate reasons based on data
+      const eventReasons: string[] = [];
+      if (commonInterests.length > 0) {
+        eventReasons.push(
+          `Matches ${commonInterests.length} of your interests: ${commonInterests.slice(0, 3).join(', ')}`,
+        );
+      }
+      if (event.vibeKey) {
+        eventReasons.push(
+          `Perfect for your ${event.vibeKey.toLowerCase()} vibe`,
+        );
+      }
+      if (event.venue) {
+        eventReasons.push(`Great location at ${event.venue}`);
+      }
+      if (eventReasons.length === 0) {
+        eventReasons.push('New experience to explore');
+      }
+
+      const eventScore = Math.min(
+        95,
+        60 + commonInterests.length * 8 + (event.vibeKey ? 10 : 0),
+      );
+
+      return {
+        eventMatch: {
+          score: eventScore,
+          reasons: eventReasons,
+        },
+        participantMatches,
+        planMatch: {
+          reasons: event.selectedPlanId
+            ? ['Plan selected based on group preferences']
+            : ['Multiple plans available for voting'],
+        },
+        overallExplanation:
+          commonInterests.length > 0
+            ? `Great match! You share ${commonInterests.length} interests with this event.`
+            : 'Perfect opportunity to explore new interests and meet like-minded people.',
+      };
+    } catch {
+      return {
+        eventMatch: {
+          score: 85,
+          reasons: [
+            'Great match with your interests',
+            'Perfect location for you',
+          ],
+        },
+        participantMatches: [],
+        planMatch: {
+          reasons: ['Plans align with your preferences'],
+        },
+        overallExplanation:
+          'This event is a great match for your vibe and interests!',
+      };
+    }
+  }
+
+  private async getEventParticipantsForChat(
+    eventId: string,
+    excludeUserId: string,
+  ) {
+    const members = await this.prisma.member.findMany({
+      where: {
+        eventId,
+        userId: { not: excludeUserId },
+        status: { in: ['JOINED', 'COMMITTED'] },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+      take: 10,
+    });
+
+    return members.map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      avatar: m.user.avatar,
+    }));
+  }
+
+  async generateChatSuggestions(eventId: string, userId: string) {
+    try {
+      const event = await this.repo.getById(eventId);
+      const plans = await this.repo.listPlans(eventId);
+      const participants = await this.getEventParticipantsForChat(
+        eventId,
+        userId,
+      );
+      const recentMessages = await this.repo.listChat(
+        eventId,
+        undefined,
+        5,
+        userId,
+      );
+
+      return await this.ai.generateChatSuggestions({
+        eventTitle: event?.title || '',
+        plans: plans.map((p) => ({
+          title: p.title,
+          description: p.description || '',
+        })),
+        participants: participants.map((p) => ({
+          name: p.name,
+          interests: [], // Could be enhanced with actual interests
+        })),
+        recentMessages:
+          recentMessages?.items?.map((m) => ({
+            userName: m.user?.name || 'Anonymous',
+            message: m.text,
+            timestamp: m.createdAt,
+          })) || [],
+      });
+    } catch {
+      // Fallback suggestions
+      return {
+        suggestions: [
+          'Hey everyone! Looking forward to this event!',
+          'This looks like such a great group! Anyone been to something like this before?',
+        ],
+        context: 'Fallback suggestions due to processing error',
+      };
+    }
   }
 }

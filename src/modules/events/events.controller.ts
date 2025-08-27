@@ -206,6 +206,30 @@ export class EventsController {
     return await this.service.getReview(params.id, req.user.userId);
   }
 
+  @Get(':id/chat/suggestions')
+  @ApiOperation({ summary: 'Get chat suggestions for event' })
+  @ApiResponse({
+    status: 200,
+    description: 'Chat suggestions retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        suggestions: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        context: { type: 'string' },
+      },
+    },
+  })
+  @UseGuards(MembershipGuard)
+  async chatSuggestions(@Param() params: EventIdParamDto, @Req() req: any) {
+    return await this.service.generateChatSuggestions(
+      params.id,
+      req.user.userId,
+    );
+  }
+
   @Post(':id/review')
   @ApiOperation({ summary: 'Submit event review' })
   @ApiResponse({

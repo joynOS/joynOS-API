@@ -26,7 +26,9 @@ export class SeedService {
       await this.seedSocialConnections();
 
       // 4. Create historical events with your participation (57 events)
-      await this.seedHistoricalEventsForUser('628b2526-05e7-4556-b6c8-e94d4c92a16b');
+      await this.seedHistoricalEventsForUser(
+        '628b2526-05e7-4556-b6c8-e94d4c92a16b',
+      );
 
       // 5. Create current/upcoming events with simulated Ticketmaster data
       await this.seedEvents();
@@ -494,9 +496,7 @@ export class SeedService {
   }
 
   private async seedHistoricalEventsForUser(userId: string) {
-    this.logger.log(
-      `📅 Creating 57 historical events for user ${userId}...`,
-    );
+    this.logger.log(`📅 Creating 57 historical events for user ${userId}...`);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

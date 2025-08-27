@@ -612,4 +612,244 @@ Make votes feel authentic based on personalities. Include some friendly discussi
     const out = await this.modelText.generateContent(prompt);
     return this.parseJson(out.response.text());
   }
+
+  async generateChatSuggestions(input: {
+    eventTitle: string;
+    plans: Array<{
+      title: string;
+      description: string;
+    }>;
+    participants: Array<{
+      name: string;
+      interests?: string[];
+    }>;
+    recentMessages?: Array<{
+      userName: string;
+      message: string;
+      timestamp: Date;
+    }>;
+  }): Promise<{
+    suggestions: string[];
+    context: string;
+  }> {
+    const hasMessages = input.recentMessages && input.recentMessages.length > 0;
+
+    let prompt = '';
+    if (hasMessages) {
+      // Generate suggestions based on recent conversation
+      const recentChat = input
+        .recentMessages!.slice(-5) // Last 5 messages
+        .map((m) => `${m.userName}: ${m.message}`)
+        .join('\n');
+
+      prompt = `Generate 2 natural conversation suggestions based on this recent chat history.
+
+EVENT: ${input.eventTitle}
+RECENT MESSAGES:
+${recentChat}
+
+Return JSON:
+{
+  "suggestions": [
+    "Natural follow-up message suggestion 1",
+    "Natural follow-up message suggestion 2"  
+  ],
+  "context": "Brief explanation of why these suggestions fit the conversation flow"
+}
+
+Make suggestions feel natural and advance the conversation. Keep them friendly and engaging.`;
+    } else {
+      // Generate ice-breaker suggestions based on event plans and participants
+      const planInfo = input.plans
+        .map((p) => `${p.title}: ${p.description}`)
+        .join('\n');
+      const participantNames = input.participants.map((p) => p.name).join(', ');
+      const sharedInterests = this.extractSharedInterests(input.participants);
+
+      prompt = `Generate 2 ice-breaker conversation starters for this event group.
+
+EVENT: ${input.eventTitle}
+PARTICIPANTS: ${participantNames}
+PLANS:
+${planInfo}
+${sharedInterests ? `SHARED INTERESTS: ${sharedInterests.join(', ')}` : ''}
+
+Return JSON:
+{
+  "suggestions": [
+    "Ice-breaker message suggestion 1 about the event/plans",
+    "Ice-breaker message suggestion 2 about shared interests or group excitement"
+  ],
+  "context": "Brief explanation of why these ice-breakers work for this group"
+}
+
+Make suggestions warm, welcoming, and specific to this event. Avoid generic greetings.`;
+    }
+
+    try {
+      const out = await this.modelText.generateContent(prompt);
+      return this.parseJson(out.response.text());
+    } catch {
+      // Fallback suggestions
+      return this.getFallbackChatSuggestions(input, hasMessages || false);
+    }
+  }
+
+  private extractSharedInterests(
+    participants: Array<{ interests?: string[] }>,
+  ): string[] {
+    const interestCounts: Record<string, number> = {};
+
+    participants.forEach((p) => {
+      p.interests?.forEach((interest) => {
+        interestCounts[interest] = (interestCounts[interest] || 0) + 1;
+      });
+    });
+
+    return Object.entries(interestCounts)
+      .filter(([, count]) => count >= 2) // Interests shared by 2+ people
+      .map(([interest]) => interest)
+      .slice(0, 3); // Top 3 shared interests
+  }
+
+  private getFallbackChatSuggestions(
+    input: any,
+    hasMessages: boolean,
+  ): {
+    suggestions: string[];
+    context: string;
+  } {
+    if (hasMessages) {
+      return {
+        suggestions: [
+          'That sounds amazing! What time works best for everyone?',
+          "I'm so excited for this! Anyone else been to something similar before?",
+        ],
+        context: 'Fallback suggestions to keep conversation flowing',
+      };
+    } else {
+      return {
+        suggestions: [
+          `Hey everyone! I'm really excited about ${
+            input.eventTitle
+          }. Anyone else looking forward to it?`,
+          'Hi all! This looks like such a fun group. What drew you to this event?',
+        ],
+        context: 'Fallback ice-breakers to start the conversation',
+      };
+    }
+  }
+
+  async generateMatchExplanation(input: {
+    currentUser: {
+      id: string;
+      interests: string[];
+      preferences?: any;
+    };
+    event: {
+      title: string;
+      vibeKey: string;
+      location: { lat: number; lng: number };
+      plans: Array<{
+        title: string;
+        description: string;
+      }>;
+    };
+    participants: Array<{
+      id: string;
+      name: string;
+      interests: string[];
+      vibeScore?: number;
+    }>;
+    matchScores: {
+      eventScore: number;
+      participantScores: Array<{
+        userId: string;
+        score: number;
+      }>;
+    };
+  }): Promise<{
+    eventMatch: {
+      score: number;
+      reasons: string[];
+    };
+    participantMatches: Array<{
+      name: string;
+      score: number;
+      reasons: string[];
+    }>;
+    planMatch: {
+      reasons: string[];
+    };
+    overallExplanation: string;
+  }> {
+    const eventScore = Math.round(input.matchScores.eventScore * 100);
+    const userInterests = input.currentUser.interests.join(', ');
+
+    // Find interest overlaps with participants
+    const participantMatches = input.participants.map((participant) => {
+      const userScore = input.matchScores.participantScores.find(
+        (s) => s.userId === participant.id,
+      );
+      const score = userScore ? Math.round(userScore.score * 100) : 75;
+
+      const sharedInterests = input.currentUser.interests.filter((interest) =>
+        participant.interests.includes(interest),
+      );
+
+      const reasons: string[] = [];
+      if (sharedInterests.length > 0) {
+        reasons.push(`Shared interests: ${sharedInterests.join(', ')}`);
+      }
+      if (score > 80) {
+        reasons.push('High personality compatibility');
+      }
+      if (participant.vibeScore && participant.vibeScore > 0.8) {
+        reasons.push('Similar energy and social style');
+      }
+      if (reasons.length === 0) {
+        reasons.push('Complementary personalities for good group dynamic');
+      }
+
+      return {
+        name: participant.name,
+        score,
+        reasons,
+      };
+    });
+
+    const eventReasons: string[] = [];
+    if (eventScore > 80) {
+      eventReasons.push(
+        `Strong match with your interests (${eventScore}% compatibility)`,
+      );
+    }
+    if (
+      input.event.vibeKey &&
+      userInterests.toLowerCase().includes(input.event.vibeKey.toLowerCase())
+    ) {
+      eventReasons.push(
+        `Perfect vibe match - you love ${input.event.vibeKey.toLowerCase()} experiences`,
+      );
+    }
+    eventReasons.push('Location fits your preferred area');
+
+    const planReasons = [
+      'Event options align with your activity preferences',
+      'Plans match your typical hangout style',
+      "Good variety to suit the group's interests",
+    ];
+
+    return {
+      eventMatch: {
+        score: eventScore,
+        reasons: eventReasons,
+      },
+      participantMatches,
+      planMatch: {
+        reasons: planReasons,
+      },
+      overallExplanation: `You're matched with this ${input.event.vibeKey.toLowerCase()} event because of ${eventScore}% interest compatibility and great chemistry with the group. This looks like your kind of hangout!`,
+    };
+  }
 }
