@@ -50,6 +50,11 @@ enum VibeKey {
   CULTURAL
 }
 
+enum UserActionType {
+  SAVED
+  LIKED
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -73,6 +78,7 @@ model User {
   reviewPeersAsPeer     EventReviewPeer[] @relation("Peer")
   connectionsA  UserConnection[] @relation("ConnA")
   connectionsB  UserConnection[] @relation("ConnB")
+  eventActions  UserEventAction[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -213,6 +219,7 @@ model Event {
   interests          EventInterest[]
   reviews            EventReview[]
   reviewPeers        EventReviewPeer[]
+  userActions        UserEventAction[]
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
   @@index([startTime])
@@ -365,4 +372,20 @@ model UserConnection {
 
   @@unique([userAId, userBId])
   @@index([createdAt])
+}
+
+model UserEventAction {
+  id         String            @id @default(uuid())
+  userId     String
+  eventId    String
+  actionType UserActionType
+  createdAt  DateTime          @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId, actionType])
+  @@index([userId])
+  @@index([eventId])
+  @@index([actionType])
 }

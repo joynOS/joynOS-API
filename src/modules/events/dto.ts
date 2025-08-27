@@ -123,3 +123,13 @@ export class CreateReviewDto {
   @IsString({ each: true })
   connectedUserIds: string[];
 }
+
+export class EventActionDto {
+  @ApiProperty({
+    description: 'Action type',
+    enum: ['SAVED', 'LIKED'],
+  })
+  @IsString()
+  @IsIn(['SAVED', 'LIKED'])
+  actionType: 'SAVED' | 'LIKED';
+}

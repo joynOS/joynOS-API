@@ -554,4 +554,69 @@ export class EventsRepository {
       data: { lastEventAt: new Date() },
     });
   }
+
+  async saveEvent(eventId: string, userId: string) {
+    return this.prisma.userEventAction.upsert({
+      where: {
+        userId_eventId_actionType: {
+          userId,
+          eventId,
+          actionType: 'SAVED',
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        eventId,
+        actionType: 'SAVED',
+      },
+    });
+  }
+
+  async unsaveEvent(eventId: string, userId: string) {
+    return this.prisma.userEventAction.deleteMany({
+      where: {
+        userId,
+        eventId,
+        actionType: 'SAVED',
+      },
+    });
+  }
+
+  async likeEvent(eventId: string, userId: string) {
+    return this.prisma.userEventAction.upsert({
+      where: {
+        userId_eventId_actionType: {
+          userId,
+          eventId,
+          actionType: 'LIKED',
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        eventId,
+        actionType: 'LIKED',
+      },
+    });
+  }
+
+  async unlikeEvent(eventId: string, userId: string) {
+    return this.prisma.userEventAction.deleteMany({
+      where: {
+        userId,
+        eventId,
+        actionType: 'LIKED',
+      },
+    });
+  }
+
+  async getUserEventActions(eventIds: string[], userId: string) {
+    return this.prisma.userEventAction.findMany({
+      where: {
+        userId,
+        eventId: { in: eventIds },
+      },
+    });
+  }
 }

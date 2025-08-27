@@ -268,4 +268,21 @@ export class EventsController {
   ) {
     return await this.service.createReview(params.id, req.user.userId, dto);
   }
+
+  @Post(':id/favorite')
+  @ApiOperation({ summary: 'Favorite/Unfavorite event (save for later)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Event favorited/unfavorited successfully',
+  })
+  async toggleFavorite(@Param() params: EventIdParamDto, @Req() req: any) {
+    return await this.service.toggleSave(params.id, req.user.userId);
+  }
+
+  @Post(':id/like')
+  @ApiOperation({ summary: 'Like/Unlike event' })
+  @ApiResponse({ status: 200, description: 'Event liked/unliked successfully' })
+  async toggleLike(@Param() params: EventIdParamDto, @Req() req: any) {
+    return await this.service.toggleLike(params.id, req.user.userId);
+  }
 }

@@ -24,7 +24,8 @@ export class EventsService {
   async recommendations(userId?: string) {
     if (userId) {
       const items = await this.matching.recommendationsForUser(userId, {});
-      return { items, nextCursor: null };
+      const itemsWithActions = await this.addUserActionsToEvents(items, userId);
+      return { items: itemsWithActions, nextCursor: null };
     }
     const items = await this.repo.getRecommendations();
     return { items, nextCursor: null };
@@ -64,9 +65,11 @@ export class EventsService {
       });
     }
 
-    return eventsWithScores.sort(
+    const sortedEvents = eventsWithScores.sort(
       (a, b) => b.vibeMatchScoreEvent - a.vibeMatchScoreEvent,
     );
+
+    return await this.addUserActionsToEvents(sortedEvents, params.userId);
   }
 
   async myEvents(userId: string) {
@@ -81,7 +84,7 @@ export class EventsService {
       });
     }
 
-    return eventsWithScores;
+    return await this.addUserActionsToEvents(eventsWithScores, userId);
   }
 
   async detail(eventId: string, userId?: string) {
@@ -653,5 +656,83 @@ export class EventsService {
         context: 'Fallback suggestions due to processing error',
       };
     }
+  }
+
+  // Event Actions (Save/Like)
+  async toggleSave(eventId: string, userId: string) {
+    // Check if already saved
+    const existing = await this.prisma.userEventAction.findUnique({
+      where: {
+        userId_eventId_actionType: {
+          userId,
+          eventId,
+          actionType: 'SAVED',
+        },
+      },
+    });
+
+    if (existing) {
+      await this.repo.unsaveEvent(eventId, userId);
+      return { saved: false, message: 'Event unsaved' };
+    } else {
+      await this.repo.saveEvent(eventId, userId);
+      return { saved: true, message: 'Event saved' };
+    }
+  }
+
+  async toggleLike(eventId: string, userId: string) {
+    // Check if already liked
+    const existing = await this.prisma.userEventAction.findUnique({
+      where: {
+        userId_eventId_actionType: {
+          userId,
+          eventId,
+          actionType: 'LIKED',
+        },
+      },
+    });
+
+    if (existing) {
+      await this.repo.unlikeEvent(eventId, userId);
+      return { liked: false, message: 'Event unliked' };
+    } else {
+      await this.repo.likeEvent(eventId, userId);
+      return { liked: true, message: 'Event liked' };
+    }
+  }
+
+  // Helper method to add saved/liked status to events
+  private async addUserActionsToEvents(events: any[], userId: string) {
+    if (!events.length) return events;
+
+    const eventIds = events
+      .map((e) => e.id)
+      .filter((id) => id !== undefined && id !== null);
+    if (!eventIds.length)
+      return events.map((event) => ({ ...event, saved: false, liked: false }));
+
+    const actions = await this.repo.getUserEventActions(eventIds, userId);
+
+    const actionsMap = actions.reduce(
+      (acc, action) => {
+        if (!acc[action.eventId]) {
+          acc[action.eventId] = { saved: false, liked: false };
+        }
+        if (action.actionType === 'SAVED') {
+          acc[action.eventId].saved = true;
+        }
+        if (action.actionType === 'LIKED') {
+          acc[action.eventId].liked = true;
+        }
+        return acc;
+      },
+      {} as Record<string, { saved: boolean; liked: boolean }>,
+    );
+
+    return events.map((event) => ({
+      ...event,
+      saved: actionsMap[event.id]?.saved || false,
+      liked: actionsMap[event.id]?.liked || false,
+    }));
   }
 }
