@@ -1,7 +1,12 @@
+import { config } from 'dotenv';
+// Load environment variables explicitly
+config();
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { IngestionService } from '../modules/ingestion/ingestion.service';
 import { PrismaService } from '../database/prisma.service';
+import { Prisma } from '@prisma/client';
 import { AIService } from '../modules/ai/ai.service';
 import { RegionIngestionService } from '../modules/ingestion/services/region-ingestion.service';
 import { TicketmasterDiscoveryService } from '../modules/external-apis/services/ticketmaster-discovery.service';
@@ -335,13 +340,406 @@ async function main() {
         }
         break;
       }
-      case 'seed:all': {
-        console.log('🌱 Running complete database seed...\n');
-        const seedService = app.get(SeedService);
-        await seedService.seedAll();
-        console.log('\n✅ Database seed completed successfully!');
+      case 'external:yelp': {
+        console.log('🍽️ Testing Yelp Fusion API with AI integration...\n');
+
+        const {
+          YelpFusionService,
+        } = require('../modules/external-apis/services/yelp-fusion.service');
+        const yelp = app.get(YelpFusionService);
+        const ai = app.get(AIService);
+        const prisma = app.get(PrismaService);
+
+        const lat = parseFloat(argv[0]) || 40.7589;
+        const lng = parseFloat(argv[1]) || -73.9851;
+        const limit = parseInt(argv[2]) || 5;
+
+        console.log(
+          `📍 Using coordinates: lat=${lat}, lng=${lng}, limit=${limit}`,
+        );
+
+        // Force Yelp credentials for CLI testing
+        const YELP_API_KEY =
+          'I3YaYUht5wErVqUbH2AxtOhy4I9865deU3Aykv--n9Qimoq2cCisvrV70kfjS8fVAYaPdA0qfF8g0mmZj4o7R3HRCEyo_sgaKGkgbXfxkPHHu8T2F8GDysSGA0SwaHYx';
+
+        console.log(`🔧 Using hardcoded Yelp API key for testing`);
+
+        // Manual check instead of relying on env
+        if (!YELP_API_KEY) {
+          console.error('❌ Yelp API key not available');
+          break;
+        }
+
+        try {
+          // Use single category to avoid timeout - get cocktail bars in NYC
+          const yelpBusinesses = await fetch(
+            `https://api.yelp.com/v3/businesses/search?latitude=${lat}&longitude=${lng}&radius=10000&categories=cocktailbars&limit=${limit}`,
+            {
+              headers: {
+                Authorization: `Bearer ${YELP_API_KEY}`,
+              },
+            },
+          );
+
+          if (!yelpBusinesses.ok) {
+            throw new Error(`Yelp API error: ${yelpBusinesses.status}`);
+          }
+
+          const yelpData = await yelpBusinesses.json();
+          console.log(
+            `✅ Found ${yelpData.businesses?.length || 0} real NYC businesses from Yelp:\n`,
+          );
+
+          let createdEvents = 0;
+          let failedEvents = 0;
+
+          for (const business of yelpData.businesses || []) {
+            const eventTitle = determineEventTitle(business);
+            console.log(`🎯 ${eventTitle}`);
+            console.log(
+              `   📍 ${business.name} - ${business.location?.display_address?.join(', ')}`,
+            );
+            console.log(
+              `   ⭐ Rating: ${business.rating}/5.0 (${business.review_count} reviews)`,
+            );
+            console.log(`   💰 Price: ${business.price || 'Not specified'}`);
+            console.log(
+              `   🏷️  Categories: ${business.categories?.map((c: any) => c.title).join(', ')}`,
+            );
+            console.log(
+              `   📞 Phone: ${business.display_phone || 'Not provided'}`,
+            );
+            console.log(`   🌐 ${business.url}`);
+
+            try {
+              // Fetch detailed business info with hours
+              let businessHours = null;
+              try {
+                const businessDetail = await fetch(
+                  `https://api.yelp.com/v3/businesses/${business.id}`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${YELP_API_KEY}`,
+                    },
+                  },
+                );
+                if (businessDetail.ok) {
+                  const detailData = await businessDetail.json();
+                  businessHours = detailData.hours?.[0]; // First set of hours
+                  console.log(
+                    `   🕐 Business hours available: ${businessHours ? 'Yes' : 'No'}`,
+                  );
+                }
+              } catch (hoursError) {
+                console.log(
+                  `   ⚠️ Could not fetch business hours: ${hoursError.message}`,
+                );
+              }
+
+              // Generate realistic event times based on business hours
+              const eventStartTime = generateEventStartTime(businessHours);
+              const eventEndTime = generateEventEndTime(eventStartTime);
+              console.log(
+                `   📅 Event time: ${eventStartTime.toLocaleString()} - ${eventEndTime.toLocaleString()}`,
+              );
+
+              // Save event to database using proper structure like ingest:nyc
+              const savedEvent = await prisma.event.upsert({
+                where: {
+                  source_sourceId: {
+                    source: 'yelp_fusion',
+                    sourceId: business.id,
+                  },
+                },
+                update: {
+                  title: eventTitle,
+                  venue: business.name,
+                  address:
+                    business.location?.display_address?.join(', ') || null,
+                  rating: business.rating
+                    ? new Prisma.Decimal(business.rating)
+                    : null,
+                  externalBookingUrl: business.url || null,
+                  lat: business.coordinates?.latitude
+                    ? new Prisma.Decimal(business.coordinates.latitude)
+                    : null,
+                  lng: business.coordinates?.longitude
+                    ? new Prisma.Decimal(business.coordinates.longitude)
+                    : null,
+                },
+                create: {
+                  source: 'yelp_fusion',
+                  sourceId: business.id,
+                  title: eventTitle,
+                  description: `${business.categories?.map((c: any) => c.title).join(', ')} experience at ${business.name}. Located in ${business.location?.city}, this venue has ${business.rating}⭐ rating from ${business.review_count} reviews on Yelp.`,
+                  venue: business.name,
+                  address:
+                    business.location?.display_address?.join(', ') || null,
+                  rating: business.rating
+                    ? new Prisma.Decimal(business.rating)
+                    : null,
+                  priceLevel: mapYelpPriceToLevel(business.price),
+                  externalBookingUrl: business.url || null,
+                  lat: business.coordinates?.latitude
+                    ? new Prisma.Decimal(business.coordinates.latitude)
+                    : null,
+                  lng: business.coordinates?.longitude
+                    ? new Prisma.Decimal(business.coordinates.longitude)
+                    : null,
+                  startTime: eventStartTime,
+                  endTime: eventEndTime,
+                  votingState: 'NOT_STARTED',
+                },
+              });
+
+              // Full AI integration like region:ingest
+              console.log(`   🤖 Generating AI vibe analysis and plans...`);
+              try {
+                // 1. First analyze the business vibe based on Yelp data
+                const aiVibeAnalysis = await ai.analyzeEventVibe({
+                  regionName: business.location?.city || 'NYC',
+                  venues: [
+                    {
+                      name: business.name,
+                      address:
+                        business.location?.display_address?.join(', ') || '',
+                      types:
+                        business.categories?.map((c: any) => c.alias) || [],
+                      tags: business.categories?.map((c: any) => c.title) || [],
+                      rating: business.rating || 0,
+                      priceLevel: mapYelpPriceToLevel(business.price),
+                    },
+                  ],
+                });
+
+                console.log(
+                  `      🧠 Detected vibe: ${aiVibeAnalysis.vibeKey}`,
+                );
+
+                // 2. Generate plans with the detected vibe
+                const aiPlans = await ai.buildTwoPlans({
+                  title: savedEvent.title,
+                  venue: savedEvent.venue || undefined,
+                  address: savedEvent.address || undefined,
+                  start: savedEvent.startTime?.toISOString(),
+                });
+
+                // 3. Generate specific plan vibe analysis
+                const planVibesAnalysis = await ai.analyzePlanVibes({
+                  eventTitle: savedEvent.title,
+                  regionName: business.location?.city || 'NYC',
+                  plans: aiPlans,
+                  venues: [
+                    {
+                      name: business.name,
+                      address:
+                        business.location?.display_address?.join(', ') || '',
+                      types:
+                        business.categories?.map((c: any) => c.alias) || [],
+                      rating: business.rating || 0,
+                      priceLevel: mapYelpPriceToLevel(business.price),
+                    },
+                  ],
+                });
+
+                // 4. Update event with AI analysis and images
+                await prisma.event.update({
+                  where: { id: savedEvent.id },
+                  data: {
+                    vibeKey: aiVibeAnalysis.vibeKey as any,
+                    vibeAnalysis: planVibesAnalysis.overallEventVibe,
+                    aiNormalized: {
+                      ...aiVibeAnalysis,
+                      vibeAnalysis: planVibesAnalysis.overallEventVibe,
+                      planAnalyses: {
+                        plan1: planVibesAnalysis.plan1Analysis,
+                        plan2: planVibesAnalysis.plan2Analysis,
+                      },
+                    },
+                    imageUrl: business.image_url || null, // Use Yelp image
+                    gallery:
+                      business.photos || [business.image_url].filter(Boolean), // Yelp photos
+                  },
+                });
+
+                // 5. Create plans in database (only if none exist)
+                const existingPlansCount = await prisma.plan.count({
+                  where: { eventId: savedEvent.id },
+                });
+
+                if (existingPlansCount === 0) {
+                  for (let i = 0; i < aiPlans.length && i < 2; i++) {
+                    const plan = aiPlans[i];
+                    await prisma.plan.create({
+                      data: {
+                        eventId: savedEvent.id,
+                        title: plan.title,
+                        description: plan.description,
+                        emoji: plan.emoji,
+                        venue: savedEvent.venue,
+                        address: savedEvent.address,
+                        lat: savedEvent.lat,
+                        lng: savedEvent.lng,
+                        rating: savedEvent.rating,
+                        priceLevel: savedEvent.priceLevel,
+                        externalBookingUrl: savedEvent.externalBookingUrl,
+                      },
+                    });
+                  }
+                } else {
+                  console.log(
+                    `      ⚠️ Plans already exist (${existingPlansCount} plans), skipping creation`,
+                  );
+                }
+
+                console.log(
+                  `      ✅ Created ${aiPlans.length} AI-generated plans with vibe analysis`,
+                );
+                console.log(
+                  `      🎨 Vibe: ${planVibesAnalysis.overallEventVibe}`,
+                );
+              } catch (aiError: any) {
+                if (aiError.message?.includes('quota') || aiError.message?.includes('429')) {
+                  console.log(`      ⚠️ Google AI Free Tier quota exceeded - no fallback implemented`);
+                  console.log(`      💡 Event saved without AI analysis. Consider upgrading Google AI plan.`);
+                  // Stop processing more events to avoid more quota errors
+                  console.log(`\n🛑 Stopping AI processing due to quota limits`);
+                  console.log(`✅ Successfully created ${createdEvents} events before quota limit`);
+                  break;
+                } else {
+                  console.log(`      ⚠️ AI integration failed: ${aiError.message}`);
+                }
+              }
+
+              console.log(`   💾 Event saved with ID: ${savedEvent.id}\n`);
+              createdEvents++;
+            } catch (dbError: any) {
+              console.error(`   ❌ Database save failed: ${dbError.message}\n`);
+              failedEvents++;
+            }
+          }
+
+          console.log(
+            `\n🎯 Summary: ${createdEvents} events created, ${failedEvents} failed`,
+          );
+        } catch (error: any) {
+          console.error(`❌ Yelp test failed: ${error.message}`);
+        }
         break;
       }
+      case 'seed:all':
+        {
+          console.log('🌱 Running complete database seed...\n');
+          const seedService = app.get(SeedService);
+          await seedService.seedAll();
+          console.log('\n✅ Database seed completed successfully!');
+          break;
+        }
+
+        // Helper functions for Yelp integration - use real business data
+        function determineEventTitle(business: any): string {
+          const categories =
+            business.categories?.map((c: any) => c.alias) || [];
+          const categoryTitles =
+            business.categories?.map((c: any) => c.title) || [];
+
+          // Use real Yelp category data for better event titles
+          if (
+            categories.includes('wine_bars') ||
+            categories.includes('wineries')
+          )
+            return `Wine Experience at ${business.name}`;
+          if (
+            categories.includes('cooking_classes') ||
+            categoryTitles.some((t: string) =>
+              t.toLowerCase().includes('cooking'),
+            )
+          )
+            return `Cooking Experience at ${business.name}`;
+          if (
+            categories.includes('art_galleries') ||
+            categories.includes('museums')
+          )
+            return `Cultural Experience at ${business.name}`;
+          if (categories.includes('spas') || categories.includes('massage'))
+            return `Wellness Experience at ${business.name}`;
+          if (categories.includes('yoga') || categories.includes('fitness'))
+            return `Fitness Experience at ${business.name}`;
+          if (
+            categories.includes('breweries') ||
+            categories.includes('cocktailbars')
+          )
+            return `Drinks Experience at ${business.name}`;
+          if (
+            categoryTitles.some((t: string) =>
+              t.toLowerCase().includes('class'),
+            )
+          )
+            return `Class at ${business.name}`;
+
+          // Default to the actual business category + experience
+          const primaryCategory = categoryTitles[0] || 'Activity';
+          return `${primaryCategory} Experience at ${business.name}`;
+        }
+
+        function mapYelpPriceToLevel(yelpPrice?: string): number {
+          if (!yelpPrice) return 0;
+          switch (yelpPrice) {
+            case '$':
+              return 1;
+            case '$$':
+              return 2;
+            case '$$$':
+              return 3;
+            case '$$$$':
+              return 4;
+            default:
+              return 0;
+          }
+        }
+
+        function generateEventStartTime(businessHours?: any): Date {
+          // Generate event for upcoming weekend (Friday or Saturday)
+          const today = new Date();
+          const daysUntilFriday = (5 - today.getDay() + 7) % 7;
+          const eventDate = new Date();
+          eventDate.setDate(
+            today.getDate() + (daysUntilFriday === 0 ? 1 : daysUntilFriday),
+          ); // Next Friday or Saturday
+
+          // Use business hours if available, otherwise default to evening time
+          if (businessHours?.open) {
+            const todayHours = businessHours.open.find(
+              (h: any) => h.day === eventDate.getDay(),
+            );
+            if (todayHours) {
+              // Convert Yelp time format (HHMM) to Date
+              const openTime = todayHours.start; // e.g., "1600" for 4 PM
+              const closeTime = todayHours.end; // e.g., "0200" for 2 AM next day
+
+              // Parse open time and add 1-2 hours for event start
+              const openHour = Math.floor(parseInt(openTime) / 100);
+              const eventHour = Math.min(
+                openHour + Math.floor(Math.random() * 2) + 1,
+                21,
+              ); // Max 9 PM
+              eventDate.setHours(eventHour, 0, 0, 0);
+              return eventDate;
+            }
+          }
+
+          // Default: evening event between 6-8 PM
+          const hour = Math.floor(Math.random() * 3) + 18;
+          eventDate.setHours(hour, 0, 0, 0);
+          return eventDate;
+        }
+
+        function generateEventEndTime(startTime: Date): Date {
+          const endTime = new Date(startTime);
+          endTime.setHours(endTime.getHours() + 3); // 3 hour event
+          return endTime;
+        }
+
       default:
         console.error(`Unknown command: ${cmd}`);
         console.log('\nAvailable commands:');
@@ -363,6 +761,9 @@ async function main() {
         );
         console.log(
           '  external:ticketmaster [lat] [lng] [limit] - Test Ticketmaster API (default: NYC, 5 events)',
+        );
+        console.log(
+          '  external:yelp [lat] [lng] [limit]        - Test Yelp Fusion API with AI integration (default: NYC, 5 events)',
         );
         console.log(
           '  demo:enhanced-event [lat] [lng] [vibe]   - Generate enhanced demo event with new AI features',
