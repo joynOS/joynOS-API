@@ -1,0 +1,103 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UsersRepository } from '../users/users.repository';
+import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcrypt';
+import { AssetsService } from '../assets/assets.service';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly usersRepo: UsersRepository,
+    private readonly assetsService: AssetsService,
+  ) {}
+
+  async signup(
+    email: string,
+    password: string,
+    name: string,
+    avatarFile?: Express.Multer.File,
+  ) {
+    const exists = await this.usersRepo.findByEmail(email);
+    if (exists) throw new UnauthorizedException();
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    let avatarUrl: string | undefined;
+    if (avatarFile) {
+      avatarUrl = await this.assetsService.uploadFile(
+        avatarFile.buffer,
+        `avatars/${randomUUID()}.${this.getFileExtension(avatarFile.originalname)}`,
+        avatarFile.mimetype,
+      );
+    }
+
+    const user = await this.usersRepo.create({
+      email,
+      name,
+      passwordHash,
+      avatar: avatarUrl,
+    });
+    return this.issueTokens(user.id);
+  }
+
+  async signin(email: string, password: string) {
+    const user = await this.usersRepo.findByEmail(email);
+    if (!user) throw new UnauthorizedException();
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) throw new UnauthorizedException();
+    return this.issueTokens(user.id);
+  }
+
+  async signinByPhone(phone: string, name?: string) {
+    const emailAlias = `phone:${phone}`;
+    let user = await this.usersRepo.findByEmail(emailAlias);
+    if (!user) {
+      const passwordHash = await bcrypt.hash(
+        `phone:${phone}:${randomUUID()}`,
+        10,
+      );
+      user = await this.usersRepo.create({
+        email: emailAlias,
+        name: name || `User ${phone}`,
+        passwordHash,
+      });
+    }
+    return this.issueTokens(user.id);
+  }
+
+  async issueTokens(userId: string) {
+    const access = await this.jwt.signAsync(
+      { sub: userId },
+      {
+        secret: process.env.JWT_ACCESS_SECRET || 'dev-secret',
+        expiresIn: '24h',
+      },
+    );
+    const refresh = await this.jwt.signAsync(
+      { sub: userId, typ: 'refresh' },
+      {
+        secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh',
+        expiresIn: '7d',
+      },
+    );
+    await this.usersRepo.saveRefreshToken(userId, refresh);
+    return { accessToken: access, refreshToken: refresh };
+  }
+
+  async refresh(userId: string, token: string) {
+    const stored = await this.usersRepo.getRefreshToken(userId);
+    if (stored !== token) throw new UnauthorizedException();
+    return this.issueTokens(userId);
+  }
+
+  async logout(userId: string) {
+    await this.usersRepo.saveRefreshToken(userId, '');
+    return { ok: true };
+  }
+
+  private getFileExtension(filename: string): string {
+    return filename.split('.').pop() || 'jpg';
+  }
+}

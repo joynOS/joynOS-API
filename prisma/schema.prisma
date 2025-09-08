@@ -1,0 +1,391 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberStatus {
+  INVITED
+  JOINED
+  COMMITTED
+  CANT_MAKE_IT
+  WAITLIST
+}
+
+enum BookingStatus {
+  NONE
+  PENDING
+  BOOKED
+}
+
+enum VotingState {
+  NOT_STARTED
+  OPEN
+  CLOSED
+}
+
+enum MessageKind {
+  CHAT
+  SYSTEM
+  VOTE
+  BOOKING
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum VibeKey {
+  RELAXED
+  DATE_NIGHT
+  PARTY
+  ARTSY
+  MORNING
+  CHILL
+  SOCIAL
+  CULTURAL
+}
+
+enum UserActionType {
+  SAVED
+  LIKED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  refreshToken  String?
+  name          String
+  bio           String?
+  avatar        String?
+  currentLat    Decimal? @db.Decimal(9, 6)
+  currentLng    Decimal? @db.Decimal(9, 6)
+  radiusMiles   Int      @default(10)
+  aiProfile     Json?
+  embedding     Bytes?
+  members       Member[]
+  interests     UserInterest[]
+  quizResults   UserQuizResult[]
+  planVotes     PlanVote[]
+  messages      EventMessage[]
+  reviews       EventReview[]
+  reviewPeersAsReviewer EventReviewPeer[] @relation("Reviewer")
+  reviewPeersAsPeer     EventReviewPeer[] @relation("Peer")
+  connectionsA  UserConnection[] @relation("ConnA")
+  connectionsB  UserConnection[] @relation("ConnB")
+  eventActions  UserEventAction[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Interest {
+  id        String          @id @default(uuid())
+  slug      String          @unique
+  emoji     String?
+  label     String
+  createdAt DateTime        @default(now())
+
+  users     UserInterest[]
+  events    EventInterest[]
+}
+
+model UserInterest {
+  userId     String
+  interestId String
+  weight     Int      @default(1)
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestId])
+  @@index([interestId])
+}
+
+model EventInterest {
+  eventId    String
+  interestId String
+  weight     Int      @default(1)
+
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, interestId])
+  @@index([interestId])
+}
+
+model Quiz {
+  id        String         @id @default(uuid())
+  key       String         @unique
+  title     String
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  questions QuizQuestion[]
+  results   UserQuizResult[]
+}
+
+model QuizQuestion {
+  id        String       @id @default(uuid())
+  quizId    String
+  order     Int
+  imageUrl  String?
+  question  String
+
+  quiz      Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers   QuizAnswer[]
+
+  @@index([quizId])
+  @@unique([quizId, order])
+}
+
+model QuizAnswer {
+  id         String       @id @default(uuid())
+  questionId String
+  key        String
+  text       String
+  archetype  String?
+
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@unique([questionId, key])
+}
+
+model UserQuizResult {
+  id                String   @id @default(uuid())
+  userId            String
+  quizId            String
+  archetypeTally    Json
+  dominantArchetype String?
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz              Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, quizId])
+}
+
+model Event {
+  id                 String      @id @default(uuid())
+  title              String
+  description        String?
+  imageUrl           String?
+  source             String?
+  sourceId           String?
+  externalBookingUrl String?
+  venue              String?
+  address            String?
+  lat                Decimal?    @db.Decimal(9, 6)
+  lng                Decimal?    @db.Decimal(9, 6)
+  startTime          DateTime?
+  endTime            DateTime?
+  rating             Decimal?    @db.Decimal(2, 1)
+  priceLevel         Int?
+  votingState        VotingState @default(NOT_STARTED)
+  votingEndsAt       DateTime?
+  selectedPlanId     String?
+  aiRaw              Json?
+  aiNormalized       Json?
+  embedding          Bytes?
+  tags               String[]
+  
+  // REGION FIELDS (new)
+  regionProvider     String?     @default("google") // "google" | "fsq" | "yelp"
+  regionPlaceId      String?     // Google place_id (or fsq_id / yelp biz id)
+  regionName         String?     // e.g., "SoHo", "Praia de Cabo Branco"
+  gallery            String[]    @default([]) // array of image URLs (proxied)
+  vibeKey            VibeKey?
+  vibeAnalysis       String?     // AI-generated vibe description based on venue/context
+  searchRadiusM      Int?        // e.g., 600..1200m used to find venues
+  
+  // EXTERNAL EVENT FIELDS (new)
+  organizerName      String?     // Event organizer name
+  attendeeCount      Int?        @default(0) // Current attendees
+  capacity           Int?        // Maximum capacity
+  priceDisplay       String?     // "Free", "$15-25", "$$"
+  requiresRSVP       Boolean     @default(false) // Requires RSVP/registration
+  categories         String[]    @default([]) // Original API categories
+  lastSyncAt         DateTime?   // Last sync with external API
+  syncStatus         String?     @default("active") // "active" | "cancelled" | "sold_out"
+  
+  plans              Plan[]
+  members            Member[]
+  messages           EventMessage[]
+  interests          EventInterest[]
+  reviews            EventReview[]
+  reviewPeers        EventReviewPeer[]
+  userActions        UserEventAction[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  @@index([startTime])
+  @@index([lat, lng])
+  @@index([votingState])
+  @@index([regionProvider, regionPlaceId])
+  @@index([vibeKey])
+  @@unique([source, sourceId])
+  @@unique([regionProvider, regionPlaceId, vibeKey, startTime])
+}
+
+model Plan {
+  id          String  @id @default(uuid())
+  eventId     String
+  title       String
+  description String
+  emoji       String?
+  votes       Int     @default(0)
+  isSelected  Boolean @default(false)
+  
+  // VENUE FIELDS (new)
+  placeProvider        String?     @default("google")
+  placeId              String?     // e.g., Google place_id
+  venue                String?     // plan-level venue name (distinct from Event.regionName)
+  address              String?
+  lat                  Decimal?    @db.Decimal(9, 6)
+  lng                  Decimal?    @db.Decimal(9, 6)
+  rating               Decimal?    @db.Decimal(2,1)
+  priceLevel           Int?        // 0..4 (Google), or -1 if unknown
+  photoUrl             String?
+  externalBookingUrl   String?     // deep link (opentable/resy/7rooms or maps place link)
+  mapUrl               String?     // https://www.google.com/maps/place/?q=place_id:<ID>
+  tags                 String[]    @default([])
+  aiNotes              Json?       // optional AI notes
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  event       Event   @relation(fields: [eventId], references: [id])
+  votesRel    PlanVote[]
+  
+  @@index([placeProvider, placeId])
+}
+
+model PlanVote {
+  id      String @id @default(uuid())
+  planId  String
+  userId  String
+  createdAt DateTime @default(now())
+  plan    Plan   @relation(fields: [planId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+  @@unique([planId, userId])
+  @@index([userId])
+}
+
+model Member {
+  id            String        @id @default(uuid())
+  eventId       String
+  userId        String
+  status        MemberStatus  @default(JOINED)
+  bookingStatus BookingStatus @default(NONE)
+  joinedAt      DateTime      @default(now())
+  compatibilityScore Int?
+  event         Event         @relation(fields: [eventId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model EventMessage {
+  id        String     @id @default(uuid())
+  eventId   String
+  userId    String?
+  kind      MessageKind
+  text      String
+  createdAt DateTime   @default(now())
+  event     Event      @relation(fields: [eventId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  @@index([eventId, createdAt])
+}
+
+model VibeScoreCache {
+  id         String   @id @default(uuid())
+  kind       String
+  subjectId  String
+  objectId   String
+  score      Int
+  details    Json?
+  expiresAt  DateTime
+
+  @@index([kind, subjectId, objectId])
+  @@index([expiresAt])
+}
+
+model IdempotencyKey {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  method        String
+  path          String
+  userId        String?
+  statusCode    Int
+  responseHash  String
+  createdAt     DateTime @default(now())
+}
+
+model EventReview {
+  id           String   @id @default(uuid())
+  eventId      String
+  userId       String
+  // ratings are 1..5
+  placeRating  Int
+  planRating   Int
+  planId       String?  // winner plan at review time (optional but useful)
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId]) // one review per user/event
+  @@index([eventId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model EventReviewPeer {
+  // who I connected with in this event review
+  eventId       String
+  reviewerId    String
+  peerUserId    String
+  createdAt     DateTime @default(now())
+
+  event         Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reviewer      User    @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  peer          User    @relation("Peer", fields: [peerUserId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, reviewerId, peerUserId])
+  @@index([peerUserId])
+}
+
+model UserConnection {
+  // undirected relation: store the ordered pair (minUserId, maxUserId)
+  id           String   @id @default(uuid())
+  userAId      String
+  userBId      String
+  status       ConnectionStatus @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  lastEventAt  DateTime?
+
+  userA        User     @relation("ConnA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB        User     @relation("ConnB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([createdAt])
+}
+
+model UserEventAction {
+  id         String            @id @default(uuid())
+  userId     String
+  eventId    String
+  actionType UserActionType
+  createdAt  DateTime          @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId, actionType])
+  @@index([userId])
+  @@index([eventId])
+  @@index([actionType])
+}
