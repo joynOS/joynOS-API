@@ -8,15 +8,19 @@ import { RegionIngestionService } from './services/region-ingestion.service';
 import { GooglePlacesService } from './services/google-places.service';
 import { VibeMappingService } from './services/vibe-mapping.service';
 import { DiscoveryService } from './services/discovery.service';
+import { DailyIngestionCronService } from './services/daily-ingestion-cron.service';
+import { IngestionController } from './ingestion.controller';
 
 @Module({
   imports: [ConfigModule, AIModule, AssetsModule, ExternalAPIsModule],
+  controllers: [IngestionController],
   providers: [
     IngestionService,
     RegionIngestionService,
     GooglePlacesService,
     VibeMappingService,
     DiscoveryService,
+    DailyIngestionCronService,
   ],
   exports: [
     IngestionService,
@@ -24,6 +28,7 @@ import { DiscoveryService } from './services/discovery.service';
     GooglePlacesService,
     VibeMappingService,
     DiscoveryService,
+    DailyIngestionCronService,
   ],
 })
 export class IngestionModule {}

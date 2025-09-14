@@ -27,8 +27,15 @@ export class EventsRepository {
   }
 
   async getRecommendations() {
+    const now = new Date();
     return this.prisma.event.findMany({
-      orderBy: { createdAt: 'desc' },
+      where: {
+        startTime: { gte: now }, // Only future events
+      },
+      orderBy: [
+        { startTime: 'asc' }, // Upcoming events first
+        { createdAt: 'desc' }, // Then by newest created
+      ],
       take: 50,
       select: {
         id: true,
@@ -163,11 +170,22 @@ export class EventsRepository {
     userId?: string;
   }) {
     const where: any = {};
+    
+    // Always filter out past events by default (show only future events)
+    const now = new Date();
     if (params.from || params.to) {
       where.startTime = {};
       if (params.from) where.startTime.gte = params.from;
       if (params.to) where.startTime.lte = params.to;
+      // Ensure we still filter future events if custom range provided
+      if (!params.from || params.from < now) {
+        where.startTime.gte = now;
+      }
+    } else {
+      // Default: show only future events
+      where.startTime = { gte: now };
     }
+    
     if (params.tags && params.tags.length) {
       where.tags = { hasSome: params.tags };
     }
