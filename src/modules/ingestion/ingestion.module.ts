@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { IngestionService } from './ingestion.service';
 import { AIModule } from '../ai/ai.module';
 import { AssetsModule } from '../assets/assets.module';
@@ -12,7 +13,16 @@ import { DailyIngestionCronService } from './services/daily-ingestion-cron.servi
 import { IngestionController } from './ingestion.controller';
 
 @Module({
-  imports: [ConfigModule, AIModule, AssetsModule, ExternalAPIsModule],
+  imports: [
+    ConfigModule,
+    AIModule,
+    AssetsModule,
+    ExternalAPIsModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET_KEY,
+      signOptions: { expiresIn: '24h' },
+    }),
+  ],
   controllers: [IngestionController],
   providers: [
     IngestionService,

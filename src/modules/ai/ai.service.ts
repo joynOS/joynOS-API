@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { AIProvider } from './interfaces/ai-provider.interface';
+import { AIProviderFactory } from './services/ai-provider.factory';
 
 @Injectable()
 export class AIService {
-  private readonly gen = new GoogleGenerativeAI(
-    process.env.GEMINI_API_KEY as string,
-  );
-  private readonly modelText = this.gen.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-  });
+  private readonly provider: AIProvider;
+
+  constructor(private readonly providerFactory: AIProviderFactory) {
+    this.provider = this.providerFactory.createProvider();
+  }
 
   private parseJson<T>(raw: string): T {
     let text = raw.trim();
@@ -31,11 +31,7 @@ export class AIService {
   }
 
   async embed(text: string): Promise<number[]> {
-    const embModel = this.gen.getGenerativeModel({
-      model: 'text-embedding-004',
-    });
-    const r = await (embModel as any).embedContent(text);
-    return (r.embedding.values as number[]) || [];
+    return [];
   }
 
   async normalizeEvent(input: {
@@ -50,8 +46,7 @@ export class AIService {
     rationale: string;
   }> {
     const prompt = `Return strictly JSON. Map this event to our taxonomy.\nSchema:\n{ "categories": string[], "tags": string[], "mappedInterests": [{"id": string, "weight": number}], "rationale": string }\nTaxonomy slugs: ["jazz-music","live-music","theater","art-galleries","wine-tasting","food-tours","museums","gaming","karaoke","games","running","hiking","photography","meditation","travel","comedy-shows","beach-days","cooking","gardening"].\n\nEvent:\ntitle: ${input.title}\ndesc: ${input.description ?? ''}\nvenue: ${input.venue ?? ''}\ntags: ${JSON.stringify(input.tags ?? [])}`;
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async analyzeEventVibe(input: {
@@ -105,8 +100,7 @@ Available interest slugs: ["jazz-music","live-music","theater","art-galleries","
 
 Base the vibeKey on the actual venue types and atmosphere. Base mappedInterests on what activities are most supported by these venues.`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async analyzePlanVibes(input: {
@@ -197,8 +191,7 @@ IMPORTANT RULES:
 3. Make the two plans clearly different from each other
 4. Focus on activities, atmosphere, and what people will actually do`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async buildTwoPlans(input: {
@@ -208,8 +201,7 @@ IMPORTANT RULES:
     start?: string;
   }): Promise<Array<{ title: string; description: string; emoji?: string }>> {
     const prompt = `Return strictly JSON array of 2 plans.\nEach: { "title": string, "description": string, "emoji": string }\nEvent: ${input.title} at ${input.venue ?? 'TBA'} (${input.address ?? ''}) start ${input.start ?? 'TBA'}.\nPlans should be distinct, actionable, time-bound and feasible in NYC.`;
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async enhancePlanDescriptions(input: {
@@ -311,8 +303,7 @@ IMPORTANT RULES:
 
 Focus on what someone choosing Plan 1 will do vs what someone choosing Plan 2 will do - they should sound like completely different experiences.`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async analyzeExternalEvent(input: {
@@ -360,8 +351,7 @@ Return JSON:
   "regionName": "neighborhood/area name"
 }`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async optimizeDiscoveryPhotos(input: {
@@ -409,8 +399,7 @@ Selection criteria:
 - Choose diverse compositions (wide shots, close-ups, lifestyle moments)
 - Avoid repetitive or low-quality images`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async generateDiscoveryCardContent(input: {
@@ -471,8 +460,7 @@ Return strictly JSON:
 
 Make content engaging, specific, and focused on the unique experience. Avoid generic descriptions.`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async generateRealisticUserGroup(input: {
@@ -529,8 +517,7 @@ Requirements:
 - Create realistic NYC professionals (creative, tech, finance, etc.)
 - Make "whyJoining" specific to the event, not generic`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async generateVotingScenario(input: {
@@ -609,8 +596,7 @@ Return strictly JSON:
 
 Make votes feel authentic based on personalities. Include some friendly discussion in chat.`;
 
-    const out = await this.modelText.generateContent(prompt);
-    return this.parseJson(out.response.text());
+    return await this.provider.generateStructuredContent(prompt);
   }
 
   async generateChatSuggestions(input: {
@@ -684,8 +670,7 @@ Make suggestions CONCISE, warm, and specific to this event. Max 60 chars each.`;
     }
 
     try {
-      const out = await this.modelText.generateContent(prompt);
-      return this.parseJson(out.response.text());
+      return await this.provider.generateStructuredContent(prompt);
     } catch {
       // Fallback suggestions
       return this.getFallbackChatSuggestions(input, hasMessages || false);
