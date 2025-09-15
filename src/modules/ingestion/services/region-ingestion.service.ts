@@ -461,6 +461,7 @@ export class RegionIngestionService {
     lng: number;
     radius: number;
     maxEvents: number;
+    regionName?: string;
     eventSourceMix?: {
       synthetic: number; // % synthetic events
       external: number; // % external events
@@ -488,6 +489,7 @@ export class RegionIngestionService {
           params.lng,
           params.radius,
           syntheticCount,
+          params.regionName,
         );
         allEvents.push(...(syntheticEvents as any[]));
         this.logger.debug(
@@ -537,6 +539,7 @@ export class RegionIngestionService {
     lng: number,
     radius: number,
     count: number,
+    regionName?: string,
   ): Promise<any[]> {
     // Use existing regions or create new ones for the area
     const regionPresets = [
@@ -558,7 +561,7 @@ export class RegionIngestionService {
         endTime.setHours(endTime.getHours() + 3);
 
         const event = await this.generateRegionEvent({
-          region: { lat, lng }, // Use provided coordinates
+          region: regionName ? { name: regionName, lat, lng } : { lat, lng }, // Use provided regionName if available
           vibeKey: preset.vibeKey as any,
           searchRadiusM: radius,
           startTime: tomorrow,

@@ -33,19 +33,26 @@ export class NYCParksService extends BaseExternalAPIService {
 
     try {
       // NYC Parks Events dataset
+      const queryParams: Record<string, any> = {
+        $where: `within_circle(location, ${params.lat}, ${params.lng}, ${Math.round(params.radius * 3.28084)})`, // Convert meters to feet
+        $limit: params.limit || 100,
+        $order: 'start_date_time ASC',
+      };
+
+      // Add date filters as query parameters (not nested objects)
+      if (params.startDate) {
+        const whereClause = queryParams.$where;
+        queryParams.$where = `${whereClause} AND start_date_time >= '${params.startDate.toISOString()}'`;
+      }
+
+      if (params.endDate) {
+        const whereClause = queryParams.$where;
+        queryParams.$where = `${whereClause} AND start_date_time <= '${params.endDate.toISOString()}'`;
+      }
+
       const events = await this.makeRequest(`${this.baseUrl}/fudw-fgrp.json`, {
         method: 'GET',
-        params: {
-          $where: `within_circle(location, ${params.lat}, ${params.lng}, ${Math.round(params.radius * 3.28084)})`, // Convert meters to feet
-          $limit: params.limit || 100,
-          $order: 'start_date_time ASC',
-          start_date_time: {
-            $gte: (params.startDate || new Date()).toISOString(),
-          },
-          end_date_time: params.endDate
-            ? { $lte: params.endDate.toISOString() }
-            : undefined,
-        },
+        params: queryParams,
       });
 
       const eventsArray = (events as any[]) || [];

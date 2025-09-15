@@ -257,6 +257,7 @@ export class DailyIngestionCronService {
           lng: region.lng,
           radius: 1500, // 1.5km radius
           maxEvents: maxEventsPerRegion,
+          regionName: region.name,
           eventSourceMix: {
             external: 65, // External APIs (Yelp, Ticketmaster, etc)
             synthetic: 35, // Google Places generated events

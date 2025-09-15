@@ -154,11 +154,15 @@ export class TicketmasterDiscoveryService extends BaseExternalAPIService {
     };
 
     if (params.startDate) {
-      searchParams.startDateTime = params.startDate.toISOString();
+      searchParams.startDateTime = params.startDate
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z');
     }
 
     if (params.endDate) {
-      searchParams.endDateTime = params.endDate.toISOString();
+      searchParams.endDateTime = params.endDate
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z');
     }
 
     if (params.lat && params.lng) {
