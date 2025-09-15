@@ -26,7 +26,7 @@ export class EventsRepository {
     });
   }
 
-  async getRecommendations() {
+  async getRecommendations(userId?: string) {
     const now = new Date();
     return this.prisma.event.findMany({
       where: {
@@ -68,6 +68,16 @@ export class EventsRepository {
         gallery: true,
         vibeKey: true,
         searchRadiusM: true,
+        // Include user interactions (likes, saves) if userId provided
+        userActions: userId
+          ? {
+              where: { userId },
+              select: {
+                actionType: true,
+                createdAt: true,
+              },
+            }
+          : false,
       },
     });
   }

@@ -28,7 +28,8 @@ export class EventsService {
       return { items: itemsWithActions, nextCursor: null };
     }
     const items = await this.repo.getRecommendations();
-    return { items, nextCursor: null };
+    const formattedItems = items.map(item => this.formatEventWithActions(item, []));
+    return { items: formattedItems, nextCursor: null };
   }
 
   async browse(params: {
@@ -41,7 +42,7 @@ export class EventsService {
     const events = await this.repo.browseEvents(params);
 
     if (!params.userId) {
-      return events;
+      return events.map(event => this.formatEventWithActions(event, []));
     }
 
     const eventsWithScores: any[] = [];
@@ -69,7 +70,9 @@ export class EventsService {
       (a, b) => b.vibeMatchScoreEvent - a.vibeMatchScoreEvent,
     );
 
-    return await this.addUserActionsToEvents(sortedEvents, params.userId);
+    return sortedEvents.map(event =>
+      this.formatEventWithActions(event, event.userActions || [])
+    );
   }
 
   async myEvents(userId: string) {
@@ -109,16 +112,17 @@ export class EventsService {
 
     if (userId) {
       scores = await this.calculateVibeScoresForEvent(event, userId);
-
       whyThisMatch = await this.generateWhyThisMatch(event, userId);
     }
 
-    return {
+    const baseEvent = {
       ...event,
       plans: plans2,
       ...scores,
       whyThisMatch,
     };
+
+    return this.formatEventWithActions(baseEvent, (event as any).userActions || []);
   }
 
   private async primePlan(
@@ -706,33 +710,45 @@ export class EventsService {
     if (!events.length) return events;
 
     const eventIds = events
-      .map((e) => e.id)
+      .map((e) => e.id || e.eventId)
       .filter((id) => id !== undefined && id !== null);
     if (!eventIds.length)
-      return events.map((event) => ({ ...event, saved: false, liked: false }));
+      return events.map((event) => this.formatEventWithActions(event, []));
 
     const actions = await this.repo.getUserEventActions(eventIds, userId);
 
     const actionsMap = actions.reduce(
       (acc, action) => {
         if (!acc[action.eventId]) {
-          acc[action.eventId] = { saved: false, liked: false };
+          acc[action.eventId] = [];
         }
-        if (action.actionType === 'SAVED') {
-          acc[action.eventId].saved = true;
-        }
-        if (action.actionType === 'LIKED') {
-          acc[action.eventId].liked = true;
-        }
+        acc[action.eventId].push(action);
         return acc;
       },
-      {} as Record<string, { saved: boolean; liked: boolean }>,
+      {} as Record<string, any[]>,
     );
 
-    return events.map((event) => ({
+    return events.map((event) => {
+      const eventId = event.id || event.eventId;
+      return this.formatEventWithActions(
+        { ...event, id: eventId },
+        actionsMap[eventId] || []
+      );
+    });
+  }
+
+  private formatEventWithActions(event: any, userActions: any[]) {
+    const hasLiked = userActions.some(action => action.actionType === 'LIKED');
+    const hasSaved = userActions.some(action => action.actionType === 'SAVED');
+
+    return {
       ...event,
-      saved: actionsMap[event.id]?.saved || false,
-      liked: actionsMap[event.id]?.liked || false,
-    }));
+      userActions,
+      isLiked: hasLiked,
+      isSaved: hasSaved,
+      liked: hasLiked,
+      saved: hasSaved,
+      favorited: hasSaved,
+    };
   }
 }
