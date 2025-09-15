@@ -72,7 +72,7 @@ export class EventsRepository {
     });
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
     return this.prisma.event.findUnique({
       where: { id },
       select: {
@@ -106,6 +106,16 @@ export class EventsRepository {
         gallery: true,
         vibeKey: true,
         searchRadiusM: true,
+        // Include user interactions (likes, saves) if userId provided
+        userActions: userId
+          ? {
+              where: { userId },
+              select: {
+                actionType: true,
+                createdAt: true,
+              },
+            }
+          : false,
       },
     });
   }
@@ -170,7 +180,7 @@ export class EventsRepository {
     userId?: string;
   }) {
     const where: any = {};
-    
+
     // Always filter out past events by default (show only future events)
     const now = new Date();
     if (params.from || params.to) {
@@ -185,7 +195,7 @@ export class EventsRepository {
       // Default: show only future events
       where.startTime = { gte: now };
     }
-    
+
     if (params.tags && params.tags.length) {
       where.tags = { hasSome: params.tags };
     }
@@ -231,6 +241,16 @@ export class EventsRepository {
               select: {
                 status: true,
                 bookingStatus: true,
+              },
+            }
+          : false,
+        // Include user interactions (likes, saves) if userId provided
+        userActions: params.userId
+          ? {
+              where: { userId: params.userId },
+              select: {
+                actionType: true,
+                createdAt: true,
               },
             }
           : false,

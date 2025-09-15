@@ -17,6 +17,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { SeedModule } from './seed/seed.module';
+import { AppVersionCheckModule } from './modules/app/app.module';
 // removed global idempotency interceptor; apply per-route
 
 @Module({
@@ -32,6 +33,7 @@ import { SeedModule } from './seed/seed.module';
     ProfileModule,
     AssetsModule,
     SeedModule,
+    AppVersionCheckModule,
   ],
   controllers: [
     AppController,

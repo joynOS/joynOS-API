@@ -88,7 +88,7 @@ export class EventsService {
   }
 
   async detail(eventId: string, userId?: string) {
-    const event = await this.repo.getById(eventId);
+    const event = await this.repo.getById(eventId, userId);
     if (!event) throw new NotFoundException();
     const ensured = await this.repo.ensureTwoPlans(eventId);
     if (ensured.length < 2) {
