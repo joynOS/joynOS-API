@@ -15,22 +15,29 @@ export interface VersionCheckResult {
 export class AppVersionService {
   constructor(private readonly configService: ConfigService) {}
 
-  async checkVersion(currentVersion: string, platform: string): Promise<VersionCheckResult> {
+  async checkVersion(
+    currentVersion: string,
+    platform: string,
+  ): Promise<VersionCheckResult> {
     // Get version configurations from environment
     const latestVersion = this.getLatestVersion(platform);
     const minimumVersion = this.getMinimumVersion(platform);
     const downloadUrl = this.getDownloadUrl(platform);
 
     // Compare versions
-    const isUpdateRequired = this.compareVersions(currentVersion, latestVersion) < 0;
-    const isForceUpdate = this.compareVersions(currentVersion, minimumVersion) < 0;
+    const isUpdateRequired =
+      this.compareVersions(currentVersion, latestVersion) < 0;
+    const isForceUpdate =
+      this.compareVersions(currentVersion, minimumVersion) < 0;
 
     // Generate appropriate message
     let updateMessage = '';
     if (isForceUpdate) {
-      updateMessage = 'Esta versão do app não é mais suportada. Atualize agora para continuar usando o JoynOS.';
+      updateMessage =
+        'Esta versão do app não é mais suportada. Atualize agora para continuar usando o JoynOS.';
     } else if (isUpdateRequired) {
-      updateMessage = 'Uma nova versão está disponível! Atualize para ter acesso às últimas funcionalidades.';
+      updateMessage =
+        'Uma nova versão está disponível! Atualize para ter acesso às últimas funcionalidades.';
     } else {
       updateMessage = 'Você está usando a versão mais recente do app!';
     }
@@ -48,12 +55,18 @@ export class AppVersionService {
 
   private getLatestVersion(platform: string): string {
     const key = `APP_LATEST_VERSION_${platform.toUpperCase()}`;
-    return this.configService.get(key, this.configService.get('APP_LATEST_VERSION', '1.0.0'));
+    return this.configService.get(
+      key,
+      this.configService.get('APP_LATEST_VERSION', '1.0.0'),
+    );
   }
 
   private getMinimumVersion(platform: string): string {
     const key = `APP_MINIMUM_VERSION_${platform.toUpperCase()}`;
-    return this.configService.get(key, this.configService.get('APP_MINIMUM_VERSION', '1.0.0'));
+    return this.configService.get(
+      key,
+      this.configService.get('APP_MINIMUM_VERSION', '1.0.0'),
+    );
   }
 
   private getDownloadUrl(platform: string): string | null {
@@ -61,10 +74,12 @@ export class AppVersionService {
     const defaultUrls: Record<string, string> = {
       ios: 'https://apps.apple.com/app/joynos',
       android: 'https://play.google.com/store/apps/details?id=com.joynos.app',
-      web: 'https://app.joynos.com'
+      web: 'https://app.joynos.com',
     };
 
-    return this.configService.get(key) || defaultUrls[platform.toLowerCase()] || null;
+    return (
+      this.configService.get(key) || defaultUrls[platform.toLowerCase()] || null
+    );
   }
 
   /**

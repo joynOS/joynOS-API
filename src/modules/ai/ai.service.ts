@@ -384,10 +384,12 @@ VIBE: ${input.vibeKey}
 AVAILABLE PHOTOS:
 ${photoList}
 
+IMPORTANT: Select ONLY from the exact URLs provided above. Do NOT generate, modify, or create new URLs.
+
 Return strictly JSON:
 {
-  "primaryPhoto": "URL of best hero image that captures the essence",
-  "galleryPhotos": ["3-4 URLs for scrollable gallery showing variety"],
+  "primaryPhoto": "EXACT URL from the list above",
+  "galleryPhotos": ["2-3 EXACT URLs from the list above"],
   "photoDescriptions": ["Brief description of what each gallery photo shows"],
   "visualVibe": "One word describing the overall visual aesthetic"
 }
@@ -395,11 +397,50 @@ Return strictly JSON:
 Selection criteria:
 - Primary photo should be highest quality and most representative
 - Gallery should show different aspects (ambiance, food, people, details)
-- Prioritize photos that evoke the ${input.vibeKey.toLowerCase()} vibe
+- Use ONLY the exact URLs provided in the available photos list
 - Choose diverse compositions (wide shots, close-ups, lifestyle moments)
 - Avoid repetitive or low-quality images`;
 
-    return await this.provider.generateStructuredContent(prompt);
+    try {
+      const result = (await this.provider.generateStructuredContent(
+        prompt,
+      )) as any;
+
+      // Validate that URLs are from the available list
+      const availableUrls = input.availablePhotos.map((p) => p.url);
+      const validateUrl = (url: string) =>
+        availableUrls.includes(url) && url.length < 2000;
+
+      // Filter and validate results
+      const primaryPhoto = validateUrl(result?.primaryPhoto)
+        ? result.primaryPhoto
+        : input.availablePhotos[0]?.url || '';
+      const galleryPhotos = (result?.galleryPhotos || [])
+        .filter(validateUrl)
+        .slice(0, 3);
+
+      // If no valid gallery photos, use first few available photos
+      if (galleryPhotos.length === 0) {
+        galleryPhotos.push(
+          ...input.availablePhotos.slice(0, 3).map((p) => p.url),
+        );
+      }
+
+      return {
+        primaryPhoto,
+        galleryPhotos,
+        photoDescriptions: result?.photoDescriptions || ['Event photo'],
+        visualVibe: result?.visualVibe || 'vibrant',
+      };
+    } catch {
+      // Fallback to first available photos
+      return {
+        primaryPhoto: input.availablePhotos[0]?.url || '',
+        galleryPhotos: input.availablePhotos.slice(0, 3).map((p) => p.url),
+        photoDescriptions: ['Event photo'],
+        visualVibe: 'vibrant',
+      };
+    }
   }
 
   async generateDiscoveryCardContent(input: {

@@ -18,8 +18,12 @@ export class DailyIngestionCronService {
   ) {}
 
   // Run every day at 3 AM (when API usage is typically lower)
-  @Cron('0 3 * * *', {
-    name: 'daily-event-ingestion',
+  // @Cron('0 3 * * *', {
+  //   name: 'daily-event-ingestion',
+  //   timeZone: 'America/New_York',
+  // })
+  @Cron('*/5 * * * *', {
+    name: 'every-5-minutes-ingestion',
     timeZone: 'America/New_York',
   })
   async handleDailyIngestion() {

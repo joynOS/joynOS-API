@@ -24,7 +24,10 @@ export class GeminiProvider implements AIProvider {
 
   private parseJson<T>(raw: string): T {
     try {
-      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const cleaned = raw
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
       return JSON.parse(cleaned);
     } catch (error) {
       const match = raw.match(/\{[\s\S]*\}/);

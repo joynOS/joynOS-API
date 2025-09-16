@@ -28,7 +28,9 @@ export class EventsService {
       return { items: itemsWithActions, nextCursor: null };
     }
     const items = await this.repo.getRecommendations();
-    const formattedItems = items.map(item => this.formatEventWithActions(item, []));
+    const formattedItems = items.map((item) =>
+      this.formatEventWithActions(item, []),
+    );
     return { items: formattedItems, nextCursor: null };
   }
 
@@ -42,7 +44,7 @@ export class EventsService {
     const events = await this.repo.browseEvents(params);
 
     if (!params.userId) {
-      return events.map(event => this.formatEventWithActions(event, []));
+      return events.map((event) => this.formatEventWithActions(event, []));
     }
 
     const eventsWithScores: any[] = [];
@@ -70,8 +72,8 @@ export class EventsService {
       (a, b) => b.vibeMatchScoreEvent - a.vibeMatchScoreEvent,
     );
 
-    return sortedEvents.map(event =>
-      this.formatEventWithActions(event, event.userActions || [])
+    return sortedEvents.map((event) =>
+      this.formatEventWithActions(event, event.userActions || []),
     );
   }
 
@@ -122,7 +124,10 @@ export class EventsService {
       whyThisMatch,
     };
 
-    return this.formatEventWithActions(baseEvent, (event as any).userActions || []);
+    return this.formatEventWithActions(
+      baseEvent,
+      (event as any).userActions || [],
+    );
   }
 
   private async primePlan(
@@ -732,14 +737,18 @@ export class EventsService {
       const eventId = event.id || event.eventId;
       return this.formatEventWithActions(
         { ...event, id: eventId },
-        actionsMap[eventId] || []
+        actionsMap[eventId] || [],
       );
     });
   }
 
   private formatEventWithActions(event: any, userActions: any[]) {
-    const hasLiked = userActions.some(action => action.actionType === 'LIKED');
-    const hasSaved = userActions.some(action => action.actionType === 'SAVED');
+    const hasLiked = userActions.some(
+      (action) => action.actionType === 'LIKED',
+    );
+    const hasSaved = userActions.some(
+      (action) => action.actionType === 'SAVED',
+    );
 
     return {
       ...event,

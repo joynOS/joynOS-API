@@ -143,9 +143,7 @@ async function main() {
               startTime: tomorrow,
               endTime: endTime,
             });
-
-            console.log(`✅ Created: ${event.title} (${event.id})`);
-            console.log(`   📋 Plans: ${event.plans?.length || 0}`);
+            if (!event) return null;
             if (event.plans?.length > 0) {
               event.plans.forEach((plan: any, idx: number) => {
                 console.log(
@@ -312,7 +310,7 @@ async function main() {
             startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
             endTime: new Date(Date.now() + 4 * 60 * 60 * 1000),
           });
-
+          if (!event) return null;
           console.log(`\n✅ Enhanced event created successfully!`);
           console.log(`📋 Event ID: ${event.id}`);
           console.log(`🎯 Title: ${event.title}`);
@@ -599,15 +597,28 @@ async function main() {
                   `      🎨 Vibe: ${planVibesAnalysis.overallEventVibe}`,
                 );
               } catch (aiError: any) {
-                if (aiError.message?.includes('quota') || aiError.message?.includes('429')) {
-                  console.log(`      ⚠️ Google AI Free Tier quota exceeded - no fallback implemented`);
-                  console.log(`      💡 Event saved without AI analysis. Consider upgrading Google AI plan.`);
+                if (
+                  aiError.message?.includes('quota') ||
+                  aiError.message?.includes('429')
+                ) {
+                  console.log(
+                    `      ⚠️ Google AI Free Tier quota exceeded - no fallback implemented`,
+                  );
+                  console.log(
+                    `      💡 Event saved without AI analysis. Consider upgrading Google AI plan.`,
+                  );
                   // Stop processing more events to avoid more quota errors
-                  console.log(`\n🛑 Stopping AI processing due to quota limits`);
-                  console.log(`✅ Successfully created ${createdEvents} events before quota limit`);
+                  console.log(
+                    `\n🛑 Stopping AI processing due to quota limits`,
+                  );
+                  console.log(
+                    `✅ Successfully created ${createdEvents} events before quota limit`,
+                  );
                   break;
                 } else {
-                  console.log(`      ⚠️ AI integration failed: ${aiError.message}`);
+                  console.log(
+                    `      ⚠️ AI integration failed: ${aiError.message}`,
+                  );
                 }
               }
 
@@ -627,158 +638,252 @@ async function main() {
         }
         break;
       }
-      case 'seed:all':
-        {
-          console.log('🌱 Running complete database seed...\n');
-          const seedService = app.get(SeedService);
-          await seedService.seedAll();
-          console.log('\n✅ Database seed completed successfully!');
-          break;
-        }
-      
-      case 'daily:ingest': {
-        console.log('🔄 Starting daily event ingestion for NYC...\n');
-        
-        const ai = app.get(AIService);
-        const regionIngestion = app.get(RegionIngestionService);
-        const prisma = app.get(PrismaService);
-        
-        // 1. CRITICAL: Test AI health first
-        console.log('🧪 Testing AI health...');
-        try {
-          const testResponse = await ai.buildTwoPlans({
-            title: 'Health Check Event',
-            venue: 'Test Venue',
-            address: 'NYC',
-            start: new Date().toISOString()
-          });
-          if (!testResponse || testResponse.length === 0) throw new Error('AI response is empty');
-          console.log('✅ AI is healthy and responding\n');
-        } catch (aiError: any) {
-          console.error('❌ AI HEALTH CHECK FAILED - STOPPING IMMEDIATELY');
-          console.error(`   Error: ${aiError.message}`);
-          if (aiError.message?.includes('quota')) {
-            console.error('   💳 Google AI quota exceeded. Please upgrade your plan.');
-          }
-          console.error('\n⛔ Cannot proceed without AI. Exiting.');
-          process.exit(1);
-        }
-        
-        // 2. Define NYC regions for comprehensive coverage
-        const nycRegions = [
-          // Manhattan
-          { name: 'SoHo, Manhattan', lat: 40.7223, lng: -74.0020, vibe: 'ARTSY' },
-          { name: 'Tribeca, Manhattan', lat: 40.7163, lng: -74.0086, vibe: 'CHILL' },
-          { name: 'Chelsea, Manhattan', lat: 40.7465, lng: -74.0014, vibe: 'DATE_NIGHT' },
-          { name: 'East Village, Manhattan', lat: 40.7264, lng: -73.9818, vibe: 'PARTY' },
-          { name: 'West Village, Manhattan', lat: 40.7358, lng: -74.0036, vibe: 'CULTURAL' },
-          { name: 'Upper East Side, Manhattan', lat: 40.7736, lng: -73.9566, vibe: 'RELAXED' },
-          { name: 'Upper West Side, Manhattan', lat: 40.7870, lng: -73.9754, vibe: 'MORNING' },
-          { name: 'Midtown, Manhattan', lat: 40.7549, lng: -73.9840, vibe: 'SOCIAL' },
-          { name: 'Financial District, Manhattan', lat: 40.7074, lng: -74.0113, vibe: 'PROFESSIONAL' },
-          // Brooklyn
-          { name: 'Williamsburg, Brooklyn', lat: 40.7081, lng: -73.9571, vibe: 'ARTSY' },
-          { name: 'DUMBO, Brooklyn', lat: 40.7033, lng: -73.9881, vibe: 'DATE_NIGHT' },
-          { name: 'Park Slope, Brooklyn', lat: 40.6681, lng: -73.9806, vibe: 'RELAXED' },
-          { name: 'Brooklyn Heights, Brooklyn', lat: 40.6960, lng: -73.9929, vibe: 'CULTURAL' },
-          // Queens
-          { name: 'Astoria, Queens', lat: 40.7720, lng: -73.9304, vibe: 'SOCIAL' },
-          { name: 'Long Island City, Queens', lat: 40.7447, lng: -73.9485, vibe: 'CHILL' },
-          { name: 'Flushing, Queens', lat: 40.7674, lng: -73.8330, vibe: 'CULTURAL' },
-        ];
-        
-        // 3. Rotate regions based on day of week to avoid duplicates
-        const dayOfWeek = new Date().getDay();
-        const regionStartIndex = (dayOfWeek * 3) % nycRegions.length;
-        const regionsToday: typeof nycRegions = [];
-        for (let i = 0; i < 5; i++) {
-          regionsToday.push(nycRegions[(regionStartIndex + i) % nycRegions.length]);
-        }
-        
-        console.log(`📍 Today's regions (Day ${dayOfWeek}):`);
-        regionsToday.forEach(r => console.log(`   - ${r.name}`));
-        console.log('');
-        
-        let totalCreated = 0;
-        let totalFailed = 0;
-        const maxEventsPerRegion = parseInt(argv[0]) || 3;
-        
-        // 4. Process each region with mixed sources
-        for (const region of regionsToday) {
-          console.log(`\n🌆 Processing ${region.name}...`);
-          
-          try {
-            // Test AI before each region (critical) - use simpler test
-            await ai.analyzeEventVibe({
-              regionName: region.name,
-              venues: []
-            });
-            
-            // Generate mixed events (external APIs + Google Places)
-            const events = await regionIngestion.generateMixedEvents({
-              lat: region.lat,
-              lng: region.lng,
-              radius: 1200,
-              maxEvents: maxEventsPerRegion,
-              eventSourceMix: { 
-                external: 60,  // Yelp, Ticketmaster, etc
-                synthetic: 40  // Google Places region events
-              }
-            });
-            
-            console.log(`   ✅ Created ${events.length} events in ${region.name}`);
-            
-            // Log source breakdown
-            const bySource = events.reduce((acc: any, e: any) => {
-              acc[e.source || 'synthetic'] = (acc[e.source || 'synthetic'] || 0) + 1;
-              return acc;
-            }, {});
-            Object.entries(bySource).forEach(([src, count]) => {
-              console.log(`      ${src}: ${count}`);
-            });
-            
-            totalCreated += events.length;
-            
-          } catch (error: any) {
-            console.error(`   ❌ Failed ${region.name}: ${error.message}`);
-            
-            // CRITICAL: Stop if AI fails
-            if (error.message?.includes('quota') || error.message?.includes('AI')) {
-              console.error('\n⛔ AI ERROR DETECTED - STOPPING ALL PROCESSING');
-              console.error(`   Created ${totalCreated} events before failure`);
-              process.exit(1);
-            }
-            
-            totalFailed++;
-          }
-        }
-        
-        // 5. Summary
-        console.log('\n' + '='.repeat(60));
-        console.log('📊 DAILY INGESTION COMPLETE');
-        console.log('='.repeat(60));
-        console.log(`✅ Total events created: ${totalCreated}`);
-        console.log(`❌ Total regions failed: ${totalFailed}`);
-        console.log(`📅 Next run: Tomorrow at same time`);
-        
-        // 6. Clean old events (optional)
-        const cleanOldEvents = argv.includes('--clean');
-        if (cleanOldEvents) {
-          console.log('\n🧹 Cleaning events older than 30 days...');
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
-          const deleted = await prisma.event.deleteMany({
-            where: {
-              createdAt: { lt: thirtyDaysAgo },
-              members: { none: {} } // Only delete if no members
-            }
-          });
-          console.log(`   Deleted ${deleted.count} old events`);
-        }
-        
+      case 'seed:all': {
+        console.log('🌱 Running complete database seed...\n');
+        const seedService = app.get(SeedService);
+        await seedService.seedAll();
+        console.log('\n✅ Database seed completed successfully!');
         break;
       }
+
+      case 'daily:ingest':
+        {
+          console.log('🔄 Starting daily event ingestion for NYC...\n');
+
+          const ai = app.get(AIService);
+          const regionIngestion = app.get(RegionIngestionService);
+          const prisma = app.get(PrismaService);
+
+          // 1. CRITICAL: Test AI health first
+          console.log('🧪 Testing AI health...');
+          try {
+            const testResponse = await ai.buildTwoPlans({
+              title: 'Health Check Event',
+              venue: 'Test Venue',
+              address: 'NYC',
+              start: new Date().toISOString(),
+            });
+            if (!testResponse || testResponse.length === 0)
+              throw new Error('AI response is empty');
+            console.log('✅ AI is healthy and responding\n');
+          } catch (aiError: any) {
+            console.error('❌ AI HEALTH CHECK FAILED - STOPPING IMMEDIATELY');
+            console.error(`   Error: ${aiError.message}`);
+            if (aiError.message?.includes('quota')) {
+              console.error(
+                '   💳 Google AI quota exceeded. Please upgrade your plan.',
+              );
+            }
+            console.error('\n⛔ Cannot proceed without AI. Exiting.');
+            process.exit(1);
+          }
+
+          // 2. Define NYC regions for comprehensive coverage
+          const nycRegions = [
+            // Manhattan
+            {
+              name: 'SoHo, Manhattan',
+              lat: 40.7223,
+              lng: -74.002,
+              vibe: 'ARTSY',
+            },
+            {
+              name: 'Tribeca, Manhattan',
+              lat: 40.7163,
+              lng: -74.0086,
+              vibe: 'CHILL',
+            },
+            {
+              name: 'Chelsea, Manhattan',
+              lat: 40.7465,
+              lng: -74.0014,
+              vibe: 'DATE_NIGHT',
+            },
+            {
+              name: 'East Village, Manhattan',
+              lat: 40.7264,
+              lng: -73.9818,
+              vibe: 'PARTY',
+            },
+            {
+              name: 'West Village, Manhattan',
+              lat: 40.7358,
+              lng: -74.0036,
+              vibe: 'CULTURAL',
+            },
+            {
+              name: 'Upper East Side, Manhattan',
+              lat: 40.7736,
+              lng: -73.9566,
+              vibe: 'RELAXED',
+            },
+            {
+              name: 'Upper West Side, Manhattan',
+              lat: 40.787,
+              lng: -73.9754,
+              vibe: 'MORNING',
+            },
+            {
+              name: 'Midtown, Manhattan',
+              lat: 40.7549,
+              lng: -73.984,
+              vibe: 'SOCIAL',
+            },
+            {
+              name: 'Financial District, Manhattan',
+              lat: 40.7074,
+              lng: -74.0113,
+              vibe: 'PROFESSIONAL',
+            },
+            // Brooklyn
+            {
+              name: 'Williamsburg, Brooklyn',
+              lat: 40.7081,
+              lng: -73.9571,
+              vibe: 'ARTSY',
+            },
+            {
+              name: 'DUMBO, Brooklyn',
+              lat: 40.7033,
+              lng: -73.9881,
+              vibe: 'DATE_NIGHT',
+            },
+            {
+              name: 'Park Slope, Brooklyn',
+              lat: 40.6681,
+              lng: -73.9806,
+              vibe: 'RELAXED',
+            },
+            {
+              name: 'Brooklyn Heights, Brooklyn',
+              lat: 40.696,
+              lng: -73.9929,
+              vibe: 'CULTURAL',
+            },
+            // Queens
+            {
+              name: 'Astoria, Queens',
+              lat: 40.772,
+              lng: -73.9304,
+              vibe: 'SOCIAL',
+            },
+            {
+              name: 'Long Island City, Queens',
+              lat: 40.7447,
+              lng: -73.9485,
+              vibe: 'CHILL',
+            },
+            {
+              name: 'Flushing, Queens',
+              lat: 40.7674,
+              lng: -73.833,
+              vibe: 'CULTURAL',
+            },
+          ];
+
+          // 3. Rotate regions based on day of week to avoid duplicates
+          const dayOfWeek = new Date().getDay();
+          const regionStartIndex = (dayOfWeek * 3) % nycRegions.length;
+          const regionsToday: typeof nycRegions = [];
+          for (let i = 0; i < 5; i++) {
+            regionsToday.push(
+              nycRegions[(regionStartIndex + i) % nycRegions.length],
+            );
+          }
+
+          console.log(`📍 Today's regions (Day ${dayOfWeek}):`);
+          regionsToday.forEach((r) => console.log(`   - ${r.name}`));
+          console.log('');
+
+          let totalCreated = 0;
+          let totalFailed = 0;
+          const maxEventsPerRegion = parseInt(argv[0]) || 3;
+
+          // 4. Process each region with mixed sources
+          for (const region of regionsToday) {
+            console.log(`\n🌆 Processing ${region.name}...`);
+
+            try {
+              // Test AI before each region (critical) - use simpler test
+              await ai.analyzeEventVibe({
+                regionName: region.name,
+                venues: [],
+              });
+
+              // Generate mixed events (external APIs + Google Places)
+              const events = await regionIngestion.generateMixedEvents({
+                lat: region.lat,
+                lng: region.lng,
+                radius: 1200,
+                maxEvents: maxEventsPerRegion,
+                eventSourceMix: {
+                  external: 60, // Yelp, Ticketmaster, etc
+                  synthetic: 40, // Google Places region events
+                },
+              });
+
+              console.log(
+                `   ✅ Created ${events.length} events in ${region.name}`,
+              );
+
+              // Log source breakdown
+              const bySource = events.reduce((acc: any, e: any) => {
+                acc[e.source || 'synthetic'] =
+                  (acc[e.source || 'synthetic'] || 0) + 1;
+                return acc;
+              }, {});
+              Object.entries(bySource).forEach(([src, count]) => {
+                console.log(`      ${src}: ${count}`);
+              });
+
+              totalCreated += events.length;
+            } catch (error: any) {
+              console.error(`   ❌ Failed ${region.name}: ${error.message}`);
+
+              // CRITICAL: Stop if AI fails
+              if (
+                error.message?.includes('quota') ||
+                error.message?.includes('AI')
+              ) {
+                console.error(
+                  '\n⛔ AI ERROR DETECTED - STOPPING ALL PROCESSING',
+                );
+                console.error(
+                  `   Created ${totalCreated} events before failure`,
+                );
+                process.exit(1);
+              }
+
+              totalFailed++;
+            }
+          }
+
+          // 5. Summary
+          console.log('\n' + '='.repeat(60));
+          console.log('📊 DAILY INGESTION COMPLETE');
+          console.log('='.repeat(60));
+          console.log(`✅ Total events created: ${totalCreated}`);
+          console.log(`❌ Total regions failed: ${totalFailed}`);
+          console.log(`📅 Next run: Tomorrow at same time`);
+
+          // 6. Clean old events (optional)
+          const cleanOldEvents = argv.includes('--clean');
+          if (cleanOldEvents) {
+            console.log('\n🧹 Cleaning events older than 30 days...');
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const deleted = await prisma.event.deleteMany({
+              where: {
+                createdAt: { lt: thirtyDaysAgo },
+                members: { none: {} }, // Only delete if no members
+              },
+            });
+            console.log(`   Deleted ${deleted.count} old events`);
+          }
+
+          break;
+        }
 
         // Helper functions for Yelp integration - use real business data
         function determineEventTitle(business: any): string {

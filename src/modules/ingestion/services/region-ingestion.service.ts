@@ -180,8 +180,13 @@ export class RegionIngestionService {
         regionPlace,
       );
 
-      this.logger.log(`Successfully created region event: ${event.id}`);
-      return event;
+      if (event) {
+        this.logger.log(`Successfully created region event: ${event.id}`);
+        return event;
+      } else {
+        this.logger.debug('Event creation skipped (duplicate found)');
+        return null;
+      }
     } catch (error) {
       this.logger.error(`Failed to generate region event:`, error.message);
       throw error;
@@ -317,12 +322,24 @@ export class RegionIngestionService {
         ? Buffer.from(Float32Array.from(embedding).buffer)
         : null;
 
-      // Convert AI mapped interests from slugs to IDs
-      const interests = await tx.interest.findMany({
+      // Convert AI mapped interests from slugs to IDs (will be used later in plan creation)
+
+      // Check if event already exists to avoid duplicates
+      const existingEvent = await tx.event.findFirst({
         where: {
-          slug: { in: aiVibeAnalysis.mappedInterests.map((i: any) => i.id) },
+          regionProvider: 'google',
+          regionPlaceId: regionPlace.place_id,
+          vibeKey: aiVibeAnalysis.vibeKey as any,
+          startTime,
         },
       });
+
+      if (existingEvent) {
+        this.logger.debug(
+          `Event already exists for ${regionPlace.name} on ${startTime.toISOString()}, skipping...`,
+        );
+        return null;
+      }
 
       // Create event
       const event = await tx.event.create({
@@ -568,7 +585,9 @@ export class RegionIngestionService {
           endTime: endTime,
         });
 
-        events.push(event);
+        if (event) {
+          events.push(event);
+        }
       } catch (error) {
         this.logger.warn(
           `Failed to generate synthetic event ${i}: ${error.message}`,

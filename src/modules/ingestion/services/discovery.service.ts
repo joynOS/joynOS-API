@@ -197,17 +197,23 @@ export class DiscoveryService {
             endTime: timeSlot.end,
           });
 
-          created.push({
-            eventId: event.id,
-            regionName: region.regionName || 'Unknown',
-            vibeKey: vibeCandidate.vibeKey,
-            startTime: timeSlot.start.toISOString(),
-            endTime: timeSlot.end.toISOString(),
-          });
+          if (event) {
+            created.push({
+              eventId: event.id,
+              regionName: region.regionName || 'Unknown',
+              vibeKey: vibeCandidate.vibeKey,
+              startTime: timeSlot.start.toISOString(),
+              endTime: timeSlot.end.toISOString(),
+            });
 
-          this.logger.log(
-            `Created event: ${event.id} - ${region.regionName} (${vibeCandidate.vibeKey})`,
-          );
+            this.logger.log(
+              `Created event: ${event.id} - ${region.regionName} (${vibeCandidate.vibeKey})`,
+            );
+          } else {
+            this.logger.debug(
+              `Event creation skipped (duplicate) for ${region.regionName} (${vibeCandidate.vibeKey})`,
+            );
+          }
         } catch (error) {
           this.logger.warn(
             `Failed to create event for ${region.regionName} (${vibeCandidate.vibeKey}): ${error.message}`,
