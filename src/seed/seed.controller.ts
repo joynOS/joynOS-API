@@ -14,4 +14,12 @@ export class SeedController {
     await this.seedService.seedAll();
     return { message: 'Database seeded successfully' };
   }
+
+  @Post('quiz')
+  @ApiOperation({ summary: 'Seed quiz questions only' })
+  @ApiResponse({ status: 201, description: 'Quiz seeded successfully' })
+  async seedQuiz() {
+    await this.seedService.seedQuiz();
+    return { message: 'Quiz seeded successfully' };
+  }
 }
