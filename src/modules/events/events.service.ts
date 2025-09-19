@@ -381,39 +381,34 @@ export class EventsService {
       },
       include: {
         user: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true,
-            embedding: true,
+          include: {
+            interests: true,
           },
         },
       },
     });
 
     const userEmbedding = user.embedding
-      ? new Float32Array(
-          user.embedding.buffer.slice(
-            user.embedding.byteOffset,
-            user.embedding.byteOffset + user.embedding.byteLength,
-          ),
-        )
+      ? new Float32Array(Buffer.from(user.embedding).buffer)
       : undefined;
 
     const eventEmbedding = event.embedding
-      ? new Float32Array(
-          event.embedding.buffer.slice(
-            event.embedding.byteOffset,
-            event.embedding.byteOffset + event.embedding.byteLength,
-          ),
-        )
+      ? new Float32Array(Buffer.from(event.embedding).buffer)
       : undefined;
 
     const otherMembers = eventMembers.filter((m) => m.userId !== userId);
-    const cohortMemberEmbeddings = otherMembers.map((m) =>
+    const cohortMemberEmbeddings = eventMembers.map((m) =>
       m.user.embedding
         ? new Float32Array(Buffer.from(m.user.embedding).buffer)
         : undefined,
+    );
+
+    // Get interests for each member for compatibility calculation
+    const cohortMemberInterests = eventMembers.map((m) =>
+      m.user.interests.map((i) => ({
+        interestId: i.interestId,
+        weight: i.weight,
+      }))
     );
 
     // Filter out the current user from participants list
@@ -459,6 +454,7 @@ export class EventsService {
       radiusMiles: user.radiusMiles,
       rating: event.rating ? Number(event.rating) : null,
       cohortMemberEmbeddings,
+      cohortMemberInterests,
     });
 
     return {
@@ -735,10 +731,37 @@ export class EventsService {
 
     return events.map((event) => {
       const eventId = event.id || event.eventId;
-      return this.formatEventWithActions(
+      const formattedEvent = this.formatEventWithActions(
         { ...event, id: eventId },
         actionsMap[eventId] || [],
       );
+
+      // Preserve match scores from MatchingService
+      if (event.vibeMatchScoreEvent !== undefined && event.vibeMatchScoreEvent !== null) {
+        formattedEvent.vibeMatchScoreEvent = event.vibeMatchScoreEvent;
+      }
+      if (event.vibeMatchScoreWithOtherUsers !== undefined && event.vibeMatchScoreWithOtherUsers !== null) {
+        formattedEvent.vibeMatchScoreWithOtherUsers = event.vibeMatchScoreWithOtherUsers;
+      }
+      if (event.overlap !== undefined && event.overlap !== null) {
+        formattedEvent.overlap = event.overlap;
+      }
+      if (event.cosine !== undefined && event.cosine !== null) {
+        formattedEvent.cosine = event.cosine;
+      }
+
+      // Also preserve other matching fields
+      if (event.distanceMiles !== undefined) {
+        formattedEvent.distanceMiles = event.distanceMiles;
+      }
+      if (event.interestedCount !== undefined) {
+        formattedEvent.interestedCount = event.interestedCount;
+      }
+      if (event.participants !== undefined) {
+        formattedEvent.participants = event.participants;
+      }
+
+      return formattedEvent;
     });
   }
 

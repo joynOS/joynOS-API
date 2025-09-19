@@ -141,11 +141,8 @@ export class MatchingService {
         },
         include: {
           user: {
-            select: {
-              id: true,
-              name: true,
-              avatar: true,
-              embedding: true,
+            include: {
+              interests: true,
             },
           },
         },
@@ -155,6 +152,13 @@ export class MatchingService {
         m.user.embedding
           ? new Float32Array(Buffer.from(m.user.embedding).buffer)
           : undefined,
+      );
+
+      const cohortMemberInterests = members.map((m) =>
+        m.user.interests.map((i) => ({
+          interestId: i.interestId,
+          weight: i.weight,
+        }))
       );
 
       const scores = calculateVibeScores({
@@ -172,6 +176,7 @@ export class MatchingService {
         radiusMiles: radius,
         rating: e.rating ? Number(e.rating) : null,
         cohortMemberEmbeddings,
+        cohortMemberInterests,
       });
 
       let vibeMatchScoreEvent = scores.vibeMatchScoreEvent;
@@ -214,6 +219,8 @@ export class MatchingService {
         distanceMiles: distMiles,
         vibeMatchScoreEvent,
         vibeMatchScoreWithOtherUsers: scores.vibeMatchScoreWithOtherUsers,
+        overlap: scores.overlap,
+        cosine: scores.cosine,
         interestedCount: members.length,
         participants: first5Participants,
         etaSeconds: eta,

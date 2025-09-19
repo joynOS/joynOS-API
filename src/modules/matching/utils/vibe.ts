@@ -11,6 +11,7 @@ export function calculateVibeScores(args: {
   radiusMiles: number;
   rating?: number | null;
   cohortMemberEmbeddings?: (Float32Array | undefined)[];
+  cohortMemberInterests?: InterestWeight[][];
 }) {
   const {
     userEmbedding,
@@ -21,6 +22,7 @@ export function calculateVibeScores(args: {
     radiusMiles,
     rating,
     cohortMemberEmbeddings,
+    cohortMemberInterests,
   } = args;
 
   const sumUser = userInterests.reduce((s, r) => s + (r.weight || 0), 0) || 1;
@@ -49,6 +51,8 @@ export function calculateVibeScores(args: {
   );
 
   let vibeMatchScoreWithOtherUsers = 0;
+
+  // First try embedding-based similarity if we have valid embeddings
   if (
     cohortMemberEmbeddings &&
     cohortMemberEmbeddings.length &&
@@ -57,11 +61,16 @@ export function calculateVibeScores(args: {
     const scores = cohortMemberEmbeddings
       .map((emb) => (emb ? cosineSim(userEmbedding, emb) : 0))
       .filter((v) => typeof v === 'number');
-    if (scores.length) {
-      vibeMatchScoreWithOtherUsers = Math.round(
-        100 * (scores.reduce((a, b) => a + b, 0) / scores.length),
-      );
+
+    if (scores.length > 0) {
+      const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+      vibeMatchScoreWithOtherUsers = Math.round(100 * avgScore);
     }
+  }
+
+  // If embeddings failed or returned 0, calculate compatibility based on interests
+  if (vibeMatchScoreWithOtherUsers === 0 && cohortMemberInterests && cohortMemberInterests.length > 0) {
+    vibeMatchScoreWithOtherUsers = calculateInterestBasedCompatibility(userInterests, cohortMemberInterests);
   }
 
   return {
@@ -72,4 +81,46 @@ export function calculateVibeScores(args: {
     penalty,
     rate,
   };
+}
+
+function calculateInterestBasedCompatibility(
+  userInterests: InterestWeight[],
+  cohortMemberInterests: InterestWeight[][]
+): number {
+  if (!cohortMemberInterests.length || !userInterests.length) {
+    return 0;
+  }
+
+  // Calculate compatibility with each member based on shared interests
+  const compatibilityScores = cohortMemberInterests.map(memberInterests => {
+    if (!memberInterests.length) return 0;
+
+    // Find overlap in interests
+    let sharedWeight = 0;
+    let totalUserWeight = userInterests.reduce((sum, interest) => sum + interest.weight, 0);
+    let totalMemberWeight = memberInterests.reduce((sum, interest) => sum + interest.weight, 0);
+
+    userInterests.forEach(userInterest => {
+      const memberInterest = memberInterests.find(
+        mi => mi.interestId === userInterest.interestId
+      );
+      if (memberInterest) {
+        // Use minimum weight as shared compatibility
+        sharedWeight += Math.min(userInterest.weight, memberInterest.weight);
+      }
+    });
+
+    // Calculate percentage of compatibility
+    const userNormalized = totalUserWeight > 0 ? sharedWeight / totalUserWeight : 0;
+    const memberNormalized = totalMemberWeight > 0 ? sharedWeight / totalMemberWeight : 0;
+
+    // Average of both normalized scores
+    return (userNormalized + memberNormalized) / 2;
+  });
+
+  // Calculate average compatibility across all members
+  const avgCompatibility = compatibilityScores.reduce((sum, score) => sum + score, 0) / compatibilityScores.length;
+
+  // Convert to percentage score (0-100)
+  return Math.round(avgCompatibility * 100);
 }
